@@ -1,0 +1,121 @@
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: "SearXNG"
+  privacypolicy_url: false
+  donation_url: false
+  contact_url: false
+  enable_metrics: false
+
+brand:
+  public_instances: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "en"
+  ban_time_on_fail: 5
+  max_ban_time_on_fail: 120
+  formats:
+    - html
+    - json
+
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  base_url: false
+  image_proxy: false
+  http_protocol_version: "1.0"
+  method: "POST"
+  secret_key: "slPE4inENHPRVyKo1SUYA0deffQC_F36_ndsD6zZ9Og"
+
+ui:
+  static_use_hash: false
+  default_locale: "en"
+  query_in_title: false
+  infinite_scroll: false
+  center_alignment: false
+  cache_url: "http://127.0.0.1:8080/static/cache/"
+  default_theme: "simple"
+  theme_args:
+    simple_style: "auto"
+
+redis:
+  url: "redis://redis:6379/0"
+
+outgoing:
+  request_timeout: 2.0
+  max_request_timeout: 3.0
+  useragent_suffix: "SearXNG"
+  pool_connections: 100
+  pool_maxsize: 100
+  enable_http2: true
+  max_retries: 0
+
+engines:
+  - name: bing
+    engine: bing
+    shortcut: bi
+    categories: general
+    disabled: false
+
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    categories: general
+    disabled: false
+
+  - name: google
+    engine: google
+    shortcut: go
+    categories: general
+    disabled: false
+
+  - name: startpage
+    engine: startpage
+    shortcut: sp
+    categories: general
+    disabled: false
+
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    categories: general
+    disabled: false
+
+  - name: wikidata
+    engine: wikidata
+    shortcut: wd
+    categories: general
+    disabled: false
+
+  - name: github
+    engine: github
+    shortcut: gh
+    categories: it
+    disabled: false
+
+  - name: stackoverflow
+    engine: stackoverflow
+    shortcut: so
+    categories: it
+    disabled: false
+
+  - name: reddit
+    engine: reddit
+    shortcut: re
+    categories: general
+    disabled: false
+
+  - name: youtube
+    engine: youtube
+    shortcut: yt
+    categories: videos
+    disabled: false
+
+  - name: vimeo
+    engine: vimeo
+    shortcut: vi
+    categories: videos
+    disabled: false
