@@ -38,6 +38,19 @@ curl -X POST http://localhost:${SEARXNG_MCP_PORT}/fetch \
   -d '{"url": "https://example.com", "headers": {"Accept": "application/json"}}'
 ```
 
+### Crawl
+```bash
+curl -X POST http://localhost:${SEARXNG_MCP_PORT}/crawl \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com", "filters": ["documentation", "guide"], "headers": {"Accept": "text/html"}, "subpage_limit": 5}'
+```
+
+**Crawl Parameters:**
+- `url` (required): The URL to crawl
+- `filters` (optional): Array of strings to filter anchor text (at least one must match)
+- `headers` (optional): Custom headers as key-value pairs
+- `subpage_limit` (optional): Maximum number of subpages to crawl (default: 5)
+
 ### Health Check
 ```bash
 curl http://localhost:${SEARXNG_MCP_PORT}/health
@@ -72,11 +85,12 @@ To use this MCP server with Claude Desktop, add the following configuration to y
       "description": "SearXNG metasearch engine that aggregates results from various search services",
         "capabilities": [
           "web_search",
-          "web_fetch"
+          "web_fetch",
+          "web_crawl"
         ],
         "usageHints": {
           "whenToUse": "Use when you need current information, recent events, web search results, or to fetch content from specific URLs that aren't in your training data",
-          "howToUse": "Call the 'search' tool with a query string for metasearch, or the 'fetch' tool with a URL to retrieve specific content. Optionally specify categories (general,it,news,science,images) and language (default: en) for search, or custom headers for fetch",
+          "howToUse": "Call the 'search' tool with a query string for metasearch, the 'fetch' tool with a URL to retrieve specific content, or the 'crawl' tool to explore a website and its related pages. Optionally specify categories (general,it,news,science,images) and language (default: en) for search, custom headers for fetch, or filters for crawl",
         "examples": [
           {
             "userQuery": "What are the latest Python 3.12 features?",
@@ -89,6 +103,10 @@ To use this MCP server with Claude Desktop, add the following configuration to y
           {
             "userQuery": "Search for Docker best practices",
             "agentAction": "Use the 'search' tool with query 'Docker best practices' and categories 'it'"
+          },
+          {
+            "userQuery": "Explore the documentation on a website",
+            "agentAction": "Use the 'crawl' tool with the website URL and filters like ['documentation', 'guide', 'tutorial']"
           }
         ]
       }
@@ -120,11 +138,12 @@ To use this MCP server with Cursor, add the following configuration to your Curs
       "description": "SearXNG metasearch engine that aggregates results from various search services",
       "capabilities": [
         "web_search",
-        "web_fetch"
+        "web_fetch",
+        "web_crawl"
       ],
       "usageHints": {
         "whenToUse": "Use when you need current information, recent events, web search results, or to fetch content from specific URLs that aren't in your training data",
-        "howToUse": "Call the 'search' tool with a query string for metasearch, or the 'fetch' tool with a URL to retrieve specific content. Optionally specify categories (general,it,news,science,images) and language (default: en) for search, or custom headers for fetch",
+        "howToUse": "Call the 'search' tool with a query string for metasearch, the 'fetch' tool with a URL to retrieve specific content, or the 'crawl' tool to explore a website and its related pages. Optionally specify categories (general,it,news,science,images) and language (default: en) for search, custom headers for fetch, or filters for crawl",
         "examples": [
           {
             "userQuery": "What are the latest Python 3.12 features?",
@@ -137,6 +156,10 @@ To use this MCP server with Cursor, add the following configuration to your Curs
           {
             "userQuery": "Search for Docker best practices",
             "agentAction": "Use the 'search' tool with query 'Docker best practices' and categories 'it'"
+          },
+          {
+            "userQuery": "Explore the documentation on a website",
+            "agentAction": "Use the 'crawl' tool with the website URL and filters like ['documentation', 'guide', 'tutorial']"
           }
         ]
       }
@@ -159,6 +182,11 @@ curl -X POST http://localhost:7778/search \
 curl -X POST http://localhost:7778/fetch \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com", "headers": {"Accept": "application/json"}}'
+
+# Crawl endpoint
+curl -X POST http://localhost:7778/crawl \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com", "filters": ["documentation", "guide"], "headers": {"Accept": "text/html"}, "subpage_limit": 5}'
 ```
 
 

@@ -12,6 +12,7 @@ import urllib.parse
 import urllib.request
 from typing import Dict, List, Optional, Any
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
 
 # MCP imports
 from mcp.server import Server
@@ -23,7 +24,7 @@ from aiohttp import web, web_request
 
 # Configuration
 DEFAULT_TIMEOUT = 30
-DEFAULT_USER_AGENT = "SearXNG-MCP-Server/1.0"
+DEFAULT_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 MAX_FETCH_LENGTH = 16384  # 16k characters default for full page content
 MAX_SEARCH_CONTENT_LENGTH = 200  # 200 characters for search result snippets
 
@@ -104,6 +105,78 @@ class SearXNGClient:
                 }
         except Exception as e:
             return {'error': str(e), 'url': url}
+    
+    def crawl(self, url: str, filters: Optional[List[str]] = None, 
+              headers: Optional[Dict[str, str]] = None, subpage_limit: int = 5) -> Dict[str, Any]:
+        """Crawl a page and return its content plus up to subpage_limit subpages that match filter criteria"""
+        try:
+            # First, fetch the main page content
+            main_result = self.fetch(url, headers)
+            if 'error' in main_result:
+                return main_result
+            
+            # Parse the main page to extract links
+            request = urllib.request.Request(url)
+            request.add_header('User-Agent', DEFAULT_USER_AGENT)
+            
+            if headers:
+                for key, value in headers.items():
+                    request.add_header(key, value)
+            
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                raw_content = response.read().decode('utf-8')
+                soup = BeautifulSoup(raw_content, 'html.parser')
+            
+            # Extract all links with their anchor text
+            links = []
+            for link in soup.find_all('a', href=True):
+                href = link.get('href')
+                anchor_text = link.get_text(strip=True)
+                
+                if href and anchor_text:
+                    # Convert relative URLs to absolute
+                    absolute_url = urljoin(url, href)
+                    
+                    # Check if link matches any filter criteria
+                    if filters:
+                        # Check if any filter string is contained in the anchor text (case-insensitive)
+                        if not any(filter_str.lower() in anchor_text.lower() for filter_str in filters):
+                            continue
+                    
+                    links.append({
+                        'url': absolute_url,
+                        'anchor_text': anchor_text
+                    })
+            
+            # Limit to subpage_limit subpages
+            selected_links = links[:subpage_limit]
+            
+            # Fetch content for each selected subpage
+            subpages = []
+            for link_info in selected_links:
+                subpage_result = self.fetch(link_info['url'], headers)
+                if 'error' not in subpage_result:
+                    subpages.append({
+                        'url': link_info['url'],
+                        'anchor_text': link_info['anchor_text'],
+                        'content': subpage_result['content'],
+                        'content_length': subpage_result['content_length']
+                    })
+            
+            return {
+                'main_page': {
+                    'url': url,
+                    'content': main_result['content'],
+                    'content_length': main_result['content_length']
+                },
+                'subpages': subpages,
+                'total_subpages_found': len(links),
+                'subpages_returned': len(subpages),
+                'filters_applied': filters
+            }
+            
+        except Exception as e:
+            return {'error': str(e), 'url': url}
 
 # MCP Server
 app = Server("searxng-mcp")
@@ -134,6 +207,20 @@ async def list_tools() -> List[Tool]:
                 "properties": {
                     "url": {"type": "string", "description": "URL to fetch content from"},
                     "headers": {"type": "object", "description": "Optional custom headers as key-value pairs"}
+                },
+                "required": ["url"]
+            }
+        ),
+        Tool(
+            name="crawl",
+            description="Crawl a page and return its content plus up to subpage_limit subpages that match filter criteria",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "URL to crawl"},
+                    "filters": {"type": "array", "items": {"type": "string"}, "description": "Array of strings to filter anchor text (at least one must match)"},
+                    "headers": {"type": "object", "description": "Optional custom headers as key-value pairs"},
+                    "subpage_limit": {"type": "integer", "description": "Maximum number of subpages to crawl (default: 5)"}
                 },
                 "required": ["url"]
             }
@@ -209,6 +296,62 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         
         return [TextContent(type="text", text=response)]
     
+    elif name == "crawl":
+        url = arguments.get("url")
+        if not url:
+            return [TextContent(type="text", text="Error: URL is required")]
+        
+        filters = arguments.get("filters")
+        headers = arguments.get("headers")
+        subpage_limit = arguments.get("subpage_limit", 5)
+        
+        # Perform crawl
+        result = client.crawl(url, filters, headers, subpage_limit)
+        
+        if 'error' in result:
+            return [TextContent(type="text", text=f"Crawl error: {result['error']}")]
+        
+        # Format response
+        response = f"Crawled: {result['main_page']['url']}\n"
+        response += f"Main page content length: {result['main_page']['content_length']} characters\n"
+        response += f"Total subpages found: {result['total_subpages_found']}\n"
+        response += f"Subpages returned: {result['subpages_returned']}\n"
+        
+        if result['filters_applied']:
+            response += f"Filters applied: {', '.join(result['filters_applied'])}\n"
+        
+        response += "\n" + "="*50 + "\n"
+        response += "MAIN PAGE CONTENT:\n"
+        response += "="*50 + "\n"
+        
+        # Truncate main page content if too long
+        main_content = result['main_page']['content']
+        if len(main_content) > MAX_FETCH_LENGTH:
+            main_content = main_content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
+        
+        response += f"{main_content}\n\n"
+        
+        # Add subpages
+        if result['subpages']:
+            response += "="*50 + "\n"
+            response += "SUBPAGES:\n"
+            response += "="*50 + "\n"
+            
+            for i, subpage in enumerate(result['subpages'], 1):
+                response += f"\n{i}. {subpage['anchor_text']}\n"
+                response += f"   URL: {subpage['url']}\n"
+                response += f"   Content Length: {subpage['content_length']} characters\n"
+                
+                # Truncate subpage content if too long
+                subpage_content = subpage['content']
+                if len(subpage_content) > MAX_SEARCH_CONTENT_LENGTH:
+                    subpage_content = subpage_content[:MAX_SEARCH_CONTENT_LENGTH] + "...\n[Content truncated]"
+                
+                response += f"   Content: {subpage_content}\n"
+                response += "-" * 30 + "\n"
+        
+        return [TextContent(type="text", text=response)]
+    
     return [TextContent(type="text", text=f"Unknown tool: {name}")]
 
 # Web server routes
@@ -253,6 +396,27 @@ async def fetch_endpoint(request: web_request.Request) -> web.Response:
     except Exception as e:
         return web.json_response({'error': str(e)}, status=500)
 
+async def crawl_endpoint(request: web_request.Request) -> web.Response:
+    try:
+        data = await request.json()
+        url = data.get('url')
+        if not url:
+            return web.json_response({'error': 'URL is required'}, status=400)
+        
+        filters = data.get('filters')
+        headers = data.get('headers')
+        subpage_limit = data.get('subpage_limit', 5)
+        
+        # Enforce maximum limit of 10 subpages
+        subpage_limit = min(subpage_limit, 10)
+        
+        # Perform crawl
+        result = client.crawl(url, filters, headers, subpage_limit)
+        
+        return web.json_response(result)
+    except Exception as e:
+        return web.json_response({'error': str(e)}, status=500)
+
 async def tools_endpoint(request: web_request.Request) -> web.Response:
     tools = [
         {
@@ -280,6 +444,20 @@ async def tools_endpoint(request: web_request.Request) -> web.Response:
                 },
                 "required": ["url"]
             }
+        },
+        {
+            "name": "crawl",
+            "description": "Crawl a page and return its content plus up to subpage_limit subpages that match filter criteria",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "URL to crawl"},
+                    "filters": {"type": "array", "items": {"type": "string"}, "description": "Array of strings to filter anchor text (at least one must match)"},
+                    "headers": {"type": "object", "description": "Optional custom headers as key-value pairs"},
+                    "subpage_limit": {"type": "integer", "description": "Maximum number of subpages to crawl (default: 5)"}
+                },
+                "required": ["url"]
+            }
         }
     ]
     return web.json_response({'tools': tools})
@@ -288,6 +466,7 @@ async def create_web_app() -> web.Application:
     app_web = web.Application()
     app_web.router.add_post('/search', search_endpoint)
     app_web.router.add_post('/fetch', fetch_endpoint)
+    app_web.router.add_post('/crawl', crawl_endpoint)
     app_web.router.add_get('/health', health_endpoint)
     app_web.router.add_get('/tools', tools_endpoint)
     return app_web
