@@ -6,9 +6,9 @@ A Python script to query a running SearXNG instance and return search results.
 This script can be used to programmatically search using SearXNG.
 
 Usage:
-    python searxng_query.py "your search query"
-    python searxng_query.py "python programming" --format json
-    python searxng_query.py "docker compose" --categories general,it
+    python searxng_search.py "your search query"
+    python searxng_search.py "python programming" --format json
+    python searxng_search.py "docker compose" --categories general,it
 """
 
 import argparse

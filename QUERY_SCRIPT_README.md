@@ -28,13 +28,13 @@ docker compose ps
 
 ```bash
 # Simple search
-python searxng_query.py "python programming"
+python searxng_search.py "python programming"
 
 # Search with specific categories
-python searxng_query.py "docker compose" --categories general,it
+python searxng_search.py "docker compose" --categories general,it
 
 # Get JSON output
-python searxng_query.py "machine learning" --format json --output json
+python searxng_search.py "machine learning" --format json --output json
 ```
 
 ## Usage Examples
@@ -43,23 +43,23 @@ python searxng_query.py "machine learning" --format json --output json
 
 ```bash
 # Simple text search
-python searxng_query.py "artificial intelligence"
+python searxng_search.py "artificial intelligence"
 
 # Search with quotes for exact phrases
-python searxng_query.py '"machine learning algorithms"'
+python searxng_search.py '"machine learning algorithms"'
 
 # Search with multiple terms
-python searxng_query.py "python flask docker deployment"
+python searxng_search.py "python flask docker deployment"
 ```
 
 ### Category Filtering
 
 ```bash
 # Search only in general category
-python searxng_query.py "news" --categories general
+python searxng_search.py "news" --categories general
 
 # Search in multiple categories
-python searxng_query.py "programming" --categories general,it
+python searxng_search.py "programming" --categories general,it
 
 # Available categories: general, it, files, images, videos, music, map, news, science, social media
 ```
@@ -68,39 +68,39 @@ python searxng_query.py "programming" --categories general,it
 
 ```bash
 # Use only specific engines
-python searxng_query.py "github" --engines github
+python searxng_search.py "github" --engines github
 
 # Use multiple engines
-python searxng_query.py "stackoverflow" --engines github,stackoverflow
+python searxng_search.py "stackoverflow" --engines github,stackoverflow
 
 # List all available engines
-python searxng_query.py --list-engines
+python searxng_search.py --list-engines
 ```
 
 ### Output Formats
 
 ```bash
 # Pretty formatted output (default)
-python searxng_query.py "python" --output pretty
+python searxng_search.py "python" --output pretty
 
 # Simple format
-python searxng_query.py "python" --output simple
+python searxng_search.py "python" --output simple
 
 # Raw JSON output
-python searxng_query.py "python" --output json
+python searxng_search.py "python" --output json
 ```
 
 ### Advanced Options
 
 ```bash
 # Custom SearXNG instance
-python searxng_query.py "test" --base-url https://search.example.com
+python searxng_search.py "test" --base-url https://search.example.com
 
 # Different language
-python searxng_query.py "hello" --language es
+python searxng_search.py "hello" --language es
 
 # Custom timeout
-python searxng_query.py "slow query" --timeout 60
+python searxng_search.py "slow query" --timeout 60
 ```
 
 ## Command Line Options
@@ -122,7 +122,7 @@ python searxng_query.py "slow query" --timeout 60
 ### Python Script Integration
 
 ```python
-from searxng_query import SearXNGClient
+from searxng_search import SearXNGClient
 
 # Initialize client
 client = SearXNGClient(base_url="http://localhost")
@@ -147,13 +147,13 @@ else:
 #!/bin/bash
 
 # Search and save results to file
-python searxng_query.py "docker compose" --output json > results.json
+python searxng_search.py "docker compose" --output json > results.json
 
 # Search and process with jq
-python searxng_query.py "python" --output json | jq '.results[0].title'
+python searxng_search.py "python" --output json | jq '.results[0].title'
 
 # Search and count results
-python searxng_query.py "machine learning" --output json | jq '.results | length'
+python searxng_search.py "machine learning" --output json | jq '.results | length'
 ```
 
 ### Batch Processing
@@ -166,7 +166,7 @@ queries=("python programming" "docker compose" "machine learning")
 
 for query in "${queries[@]}"; do
     echo "Searching: $query"
-    python searxng_query.py "$query" --output simple
+    python searxng_search.py "$query" --output simple
     echo "=========================================="
 done
 ```
@@ -198,18 +198,18 @@ Error: JSON Decode Error: Expecting value: line 1 column 1 (char 0)
 
 2. **404 Not Found**: Wrong base URL
    ```bash
-   python searxng_query.py "test" --base-url http://localhost:7777
+   python searxng_search.py "test" --base-url http://localhost:7777
    ```
 
 3. **Timeout errors**: SearXNG is slow or overloaded
    ```bash
-   python searxng_query.py "test" --timeout 60
+   python searxng_search.py "test" --timeout 60
    ```
 
 4. **No results**: Try different categories or engines
    ```bash
-   python searxng_query.py "test" --categories general
-   python searxng_query.py --list-engines
+   python searxng_search.py "test" --categories general
+   python searxng_search.py --list-engines
    ```
 
 ### Debug Mode

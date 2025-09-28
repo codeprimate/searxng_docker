@@ -1,174 +1,161 @@
-# SearXNG Docker Compose Setup
+# SearXNG Search Engine
 
-This repository contains a complete Docker Compose configuration for running SearXNG, a privacy-respecting, open metasearch engine.
+A privacy-respecting search engine that aggregates results from multiple sources.
+(this version has been modified)
 
-## Services Included
+## What's Included
 
-- **SearXNG**: The main search engine application
-- **Redis**: In-memory database for caching search results
-- **Caddy**: Reverse proxy with automatic HTTPS certificate management
+- **SearXNG**: Main search application
+- **Redis**: Caching for faster searches  
+- **Query Script**: Python tool for programmatic searches
 
-## Quick Start
+## Quick Setup
 
 ### 1. Prerequisites
+- Docker and Docker Compose
+- Domain name (for production) or use localhost
 
-- Docker and Docker Compose installed
-- A domain name (for production) or use localhost for testing
-
-### 2. Configuration
-
-Create a `.env` file in the project root with your configuration:
-
+### 2. Configure Environment
 ```bash
-# Copy and edit the environment variables
-cp .env.example .env
+# Copy environment template
+cp env.example .env
+
+# Edit with your values
+nano .env
 ```
 
-Edit the `.env` file with your values:
-
+Required settings in `.env`:
 ```env
-# SearXNG Configuration
-SEARXNG_HOSTNAME=your-domain.com  # or localhost for testing
-SEARXNG_EMAIL=your-email@example.com  # for Let's Encrypt certificates
+SEARXNG_SECRET_KEY=your-secret-key-here
+SEARXNG_BASE_URL=http://localhost:7777/
 ```
 
 ### 3. Generate Secret Key
-
-Generate a secure secret key for SearXNG:
-
 ```bash
-# On Linux/macOS
-sed -i "s|ultrasecretkey|$(openssl rand -hex 32)|g" searxng/settings.yml
-
-# On macOS (alternative)
-sed -i '' "s|ultrasecretkey|$(openssl rand -hex 32)|g" searxng/settings.yml
+# Generate secure key
+openssl rand -hex 32
 ```
+Copy the output to `SEARXNG_SECRET_KEY` in your `.env` file.
 
-### 4. Start the Services
-
+### 4. Start Services
 ```bash
-# Start all services in detached mode
+# Start all services
 docker compose up -d
+
+# Check status
+docker compose ps
 
 # View logs
 docker compose logs -f
-
-# Stop services
-docker compose down
 ```
 
-### 5. Access SearXNG
-
-- **Local development**: http://localhost
+### 5. Access Search Engine
+- **Local**: http://localhost:7777
 - **Production**: https://your-domain.com
 
-## Configuration Details
+## Running as a Service
 
-### SearXNG Settings
+### Auto-restart
+Services automatically restart on failure (`restart: unless-stopped`)
 
-The SearXNG configuration is located in `searxng/settings.yml`. Key settings include:
+### Data Persistence
+- Redis data persists in Docker volume
+- SearXNG configuration persists in `./searxng/` directory
 
-- **Search engines**: Configured with popular engines like Google, Bing, DuckDuckGo, etc.
-- **Privacy settings**: Safe search, autocomplete, and other privacy options
-- **UI customization**: Theme, locale, and display options
-
-### Caddy Configuration
-
-The `Caddyfile` includes:
-
-- Automatic HTTPS with Let's Encrypt
-- Security headers (HSTS, CSP, etc.)
-- Compression
-- Request logging
-
-### Redis Configuration
-
-Redis is configured for:
-- Data persistence with periodic saves
-- Optimized logging level
-- Network isolation
-
-## Customization
-
-### Adding Search Engines
-
-Edit `searxng/settings.yml` to add or remove search engines:
-
-```yaml
-engines:
-  - name: your_engine
-    engine: your_engine
-    shortcut: ye
-    categories: general
-    disabled: false
-```
-
-### Custom Themes
-
-You can customize the UI by modifying the theme settings in `searxng/settings.yml`:
-
-```yaml
-ui:
-  default_theme: "simple"
-  theme_args:
-    simple_style: "auto"
-```
-
-### Security Considerations
-
-For production deployment:
-
-1. **Change the secret key**: Always generate a new secret key
-2. **Use HTTPS**: The Caddy configuration automatically handles this
-3. **Firewall**: Only expose ports 80 and 443
-4. **Updates**: Regularly update the Docker images
-5. **Monitoring**: Consider adding monitoring and logging solutions
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Certificate issues**: Ensure your domain points to your server
-2. **Port conflicts**: Make sure ports 80 and 443 are available
-3. **Permission issues**: Check Docker volume permissions
-
-### Logs
-
-View logs for specific services:
-
+### Monitoring
 ```bash
-# All services
-docker compose logs
+# Check service health
+docker compose ps
 
-# Specific service
-docker compose logs searxng
-docker compose logs caddy
-docker compose logs redis
+# View recent logs
+docker compose logs --tail=50
+
+# Monitor resource usage
+docker stats
 ```
 
-### Reset Everything
-
-To start fresh:
-
+### Updates
 ```bash
-# Stop and remove containers, networks, and volumes
-docker compose down -v
+# Pull latest images
+docker compose pull
 
-# Remove images (optional)
-docker compose down --rmi all
-
-# Start again
+# Restart with new images
 docker compose up -d
 ```
 
-## Development
+## Using the Query Script
 
-For development purposes, you can:
+Search programmatically with the included Python script:
 
-1. Mount local configuration files
-2. Enable debug mode in `searxng/settings.yml`
-3. Use localhost without HTTPS for testing
+```bash
+# Basic search
+python searxng_search.py "your search term"
 
-## License
+# Search specific categories
+python searxng_search.py "docker" --categories general,it
 
-This configuration is provided as-is. SearXNG itself is licensed under the GNU Affero General Public License v3.0.
+# Get JSON output
+python searxng_search.py "python" --output json
+```
+
+See `QUERY_SCRIPT_README.md` for detailed usage.
+
+## Production Deployment
+
+### Domain Setup
+1. Point your domain to your server
+2. Update `SEARXNG_BASE_URL` in `.env` to use your domain
+3. Ensure ports 80/443 are open
+
+### Security
+- Change the default secret key
+- Use HTTPS (automatic with proper domain setup)
+- Keep Docker images updated
+
+### Backup
+```bash
+# Backup configuration
+tar -czf searxng-backup.tar.gz searxng/ .env
+
+# Backup Redis data
+docker compose exec redis redis-cli BGSAVE
+```
+
+## Troubleshooting
+
+### Services Won't Start
+```bash
+# Check logs
+docker compose logs
+
+# Restart everything
+docker compose down && docker compose up -d
+```
+
+### Can't Access Search
+- Verify port 7777 is open
+- Check `SEARXNG_BASE_URL` matches your setup
+- Ensure services are running: `docker compose ps`
+
+### Reset Everything
+```bash
+# Stop and remove all data
+docker compose down -v
+
+# Start fresh
+docker compose up -d
+```
+
+## Maintenance
+
+### Regular Tasks
+- Update Docker images monthly
+- Monitor disk space for Redis data
+- Check logs for errors
+
+### Log Management
+Logs are automatically rotated (1MB max, 1 file kept)
+
+### Performance
+- Redis caching improves response times
+- Adjust search engines in `searxng/settings.yml` if needed
