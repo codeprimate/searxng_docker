@@ -8,6 +8,9 @@ general:
   contact_url: false
   enable_metrics: false
 
+bot_detection:
+  enabled: false
+
 brand:
   public_instances: false
 
@@ -20,15 +23,17 @@ search:
   formats:
     - html
     - json
+  default_doi_resolver: "doi.org"
 
 server:
-  port: 8080
+  port: 7777
   bind_address: "0.0.0.0"
   base_url: false
   image_proxy: false
   http_protocol_version: "1.0"
   method: "POST"
-  secret_key: "slPE4inENHPRVyKo1SUYA0deffQC_F36_ndsD6zZ9Og"
+  secret_key: "${SEARXNG_SECRET_KEY}"
+  limiter: false
 
 ui:
   static_use_hash: false
@@ -36,12 +41,12 @@ ui:
   query_in_title: false
   infinite_scroll: false
   center_alignment: false
-  cache_url: "http://127.0.0.1:8080/static/cache/"
+  cache_url: "http://127.0.0.1:7777/static/cache/"
   default_theme: "simple"
   theme_args:
     simple_style: "auto"
 
-redis:
+valkey:
   url: "redis://redis:6379/0"
 
 outgoing:
@@ -96,12 +101,6 @@ engines:
     categories: it
     disabled: false
 
-  - name: stackoverflow
-    engine: stackoverflow
-    shortcut: so
-    categories: it
-    disabled: false
-
   - name: reddit
     engine: reddit
     shortcut: re
@@ -109,7 +108,7 @@ engines:
     disabled: false
 
   - name: youtube
-    engine: youtube
+    engine: youtube_noapi
     shortcut: yt
     categories: videos
     disabled: false
@@ -119,3 +118,39 @@ engines:
     shortcut: vi
     categories: videos
     disabled: false
+
+  - name: stackexchange
+    engine: stackexchange
+    shortcut: sx
+    categories: it
+    disabled: false
+
+  - name: ahmia
+    engine: ahmia
+    shortcut: ah
+    categories: general
+    disabled: false
+
+  - name: yacy
+    engine: yacy
+    categories: general
+    search_type: text
+    shortcut: ya
+    base_url:
+      - https://yacy.searchlab.eu
+      - https://search.lomig.me
+      - https://yacy.ecosys.eu
+      - https://search.webproject.link
+    disabled: false
+
+  - name: yacy images
+    engine: yacy
+    categories: images
+    search_type: image
+    shortcut: yai
+    base_url:
+      - https://yacy.searchlab.eu
+      - https://search.lomig.me
+      - https://yacy.ecosys.eu
+      - https://search.webproject.link
+    disabled: true

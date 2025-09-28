@@ -198,7 +198,7 @@ Error: JSON Decode Error: Expecting value: line 1 column 1 (char 0)
 
 2. **404 Not Found**: Wrong base URL
    ```bash
-   python searxng_query.py "test" --base-url http://localhost:8080
+   python searxng_query.py "test" --base-url http://localhost:7777
    ```
 
 3. **Timeout errors**: SearXNG is slow or overloaded

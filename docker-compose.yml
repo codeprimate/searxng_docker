@@ -13,12 +13,13 @@ services:
     image: searxng/searxng:latest
     container_name: searxng
     ports:
-      - "8080:8080"
+      - "7777:7777"
     volumes:
       - ./searxng:/etc/searxng:rw
     environment:
       - SEARXNG_BASE_URL=${SEARXNG_BASE_URL}
       - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY}
+      - GRANIAN_PORT=${GRANIAN_PORT}
     cap_drop:
       - ALL
     cap_add:

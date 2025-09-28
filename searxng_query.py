@@ -23,7 +23,7 @@ import time
 class SearXNGClient:
     """Client for interacting with SearXNG search engine."""
     
-    def __init__(self, base_url: str = "http://localhost:8080", timeout: int = 30):
+    def __init__(self, base_url: str = "http://localhost:7777", timeout: int = 30):
         """
         Initialize the SearXNG client.
         
@@ -182,8 +182,8 @@ Examples:
     )
     
     parser.add_argument('query', help='Search query string')
-    parser.add_argument('--base-url', default='http://localhost:8080', 
-                       help='Base URL of SearXNG instance (default: http://localhost:8080)')
+    parser.add_argument('--base-url', default='http://localhost:7777', 
+                       help='Base URL of SearXNG instance (default: http://localhost:7777)')
     parser.add_argument('--format', choices=['html', 'json'], default='json',
                        help='Response format (default: json)')
     parser.add_argument('--output', choices=['pretty', 'json', 'simple'], default='pretty',
