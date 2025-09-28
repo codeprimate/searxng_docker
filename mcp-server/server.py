@@ -95,6 +95,24 @@ class SearXNGClient:
                 chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
                 clean_text = '\n'.join(chunk for chunk in chunks if chunk)
                 
+                # Extract links after getting clean text
+                links = []
+                seen_urls = set()  # Track seen URLs to avoid duplicates
+                for link in soup.find_all('a', href=True):
+                    href = link.get('href')
+                    anchor_text = link.get_text(strip=True)
+                    if href and anchor_text:
+                        # Convert relative URLs to absolute
+                        absolute_url = urljoin(url, href)
+                        # Only add if we haven't seen this URL before
+                        if absolute_url not in seen_urls:
+                            seen_urls.add(absolute_url)
+                            links.append(f"{anchor_text}: {absolute_url}")
+                
+                # Append links to the clean text
+                if links:
+                    clean_text += "\n\nLinks found on this page:\n" + "\n".join(links)
+                
                 return {
                     'url': url,
                     'status_code': response.status,
@@ -129,6 +147,7 @@ class SearXNGClient:
             
             # Extract all links with their anchor text
             links = []
+            seen_urls = set()  # Track seen URLs to avoid duplicates
             for link in soup.find_all('a', href=True):
                 href = link.get('href')
                 anchor_text = link.get_text(strip=True)
@@ -136,6 +155,11 @@ class SearXNGClient:
                 if href and anchor_text:
                     # Convert relative URLs to absolute
                     absolute_url = urljoin(url, href)
+                    
+                    # Skip if we've already seen this URL
+                    if absolute_url in seen_urls:
+                        continue
+                    seen_urls.add(absolute_url)
                     
                     # Check if link matches any filter criteria
                     if filters:
@@ -287,10 +311,20 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             response += f"Original Content Length: {result['original_content_length']} characters\n"
         response += f"Clean Text Length: {result['content_length']} characters\n\n"
         
-        # Truncate content if too long
+        # Truncate content if too long, but preserve links section
         content = result['content']
         if len(content) > MAX_FETCH_LENGTH:
-            content = content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
+            # Check if there's a links section at the end
+            links_section_start = content.find("\n\nLinks found on this page:")
+            if links_section_start != -1:
+                # Truncate main content but keep links section
+                main_content = content[:links_section_start]
+                links_section = content[links_section_start:]
+                if len(main_content) > MAX_FETCH_LENGTH:
+                    main_content = main_content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
+                content = main_content + links_section
+            else:
+                content = content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
         
         response += f"Clean Text Content:\n{content}"
         
@@ -324,10 +358,20 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         response += "MAIN PAGE CONTENT:\n"
         response += "="*50 + "\n"
         
-        # Truncate main page content if too long
+        # Truncate main page content if too long, but preserve links section
         main_content = result['main_page']['content']
         if len(main_content) > MAX_FETCH_LENGTH:
-            main_content = main_content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
+            # Check if there's a links section at the end
+            links_section_start = main_content.find("\n\nLinks found on this page:")
+            if links_section_start != -1:
+                # Truncate main content but keep links section
+                main_text = main_content[:links_section_start]
+                links_section = main_content[links_section_start:]
+                if len(main_text) > MAX_FETCH_LENGTH:
+                    main_text = main_text[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
+                main_content = main_text + links_section
+            else:
+                main_content = main_content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
         
         response += f"{main_content}\n\n"
         
@@ -342,10 +386,20 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
                 response += f"   URL: {subpage['url']}\n"
                 response += f"   Content Length: {subpage['content_length']} characters\n"
                 
-                # Truncate subpage content if too long
+                # Truncate subpage content if too long, but preserve links section
                 subpage_content = subpage['content']
-                if len(subpage_content) > MAX_SEARCH_CONTENT_LENGTH:
-                    subpage_content = subpage_content[:MAX_SEARCH_CONTENT_LENGTH] + "...\n[Content truncated]"
+                if len(subpage_content) > MAX_FETCH_LENGTH:
+                    # Check if there's a links section at the end
+                    links_section_start = subpage_content.find("\n\nLinks found on this page:")
+                    if links_section_start != -1:
+                        # Truncate main content but keep links section
+                        main_text = subpage_content[:links_section_start]
+                        links_section = subpage_content[links_section_start:]
+                        if len(main_text) > MAX_FETCH_LENGTH:
+                            main_text = main_text[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
+                        subpage_content = main_text + links_section
+                    else:
+                        subpage_content = subpage_content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
                 
                 response += f"   Content: {subpage_content}\n"
                 response += "-" * 30 + "\n"

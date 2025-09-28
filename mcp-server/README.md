@@ -49,7 +49,7 @@ curl -X POST http://localhost:${SEARXNG_MCP_PORT}/crawl \
 - `url` (required): The URL to crawl
 - `filters` (optional): Array of strings to filter anchor text (at least one must match)
 - `headers` (optional): Custom headers as key-value pairs
-- `subpage_limit` (optional): Maximum number of subpages to crawl (default: 5)
+- `subpage_limit` (optional): Maximum number of subpages to crawl (default: 5, max: 10)
 
 ### Health Check
 ```bash
@@ -186,7 +186,7 @@ curl -X POST http://localhost:7778/fetch \
 # Crawl endpoint
 curl -X POST http://localhost:7778/crawl \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com", "filters": ["documentation", "guide"], "headers": {"Accept": "text/html"}, "subpage_limit": 5}'
+  -d '{"url": "https://example.com", "filters": ["documentation", "guide"], "headers": {"Accept": "text/html"}, "subpage_limit": 10}'
 ```
 
 
