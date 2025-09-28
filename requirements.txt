@@ -1,6 +1,6 @@
 # SearXNG Query Script Dependencies
-# This script uses only Python standard library modules
-# No external dependencies required
+# Core dependencies
+python-dotenv>=1.0.0  # For loading .env files
 
 # Optional: For enhanced functionality, you could add:
 # requests>=2.28.0  # Alternative HTTP client

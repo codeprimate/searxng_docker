@@ -26,8 +26,11 @@ nano .env
 
 Required settings in `.env`:
 ```env
+SEARXNG_PROTOCOL=http
+SEARXNG_HOST=localhost
+SEARXNG_PORT=7777
+SEARXNG_BASE_URL=${SEARXNG_PROTOCOL}://${SEARXNG_HOST}:${SEARXNG_PORT}/
 SEARXNG_SECRET_KEY=your-secret-key-here
-SEARXNG_BASE_URL=http://localhost:7777/
 ```
 
 ### 3. Generate Secret Key
@@ -50,7 +53,7 @@ docker compose logs -f
 ```
 
 ### 5. Access Search Engine
-- **Local**: http://localhost:7777
+- **Local**: http://localhost:7777 (or your configured SEARXNG_PORT)
 - **Production**: https://your-domain.com
 
 ## Running as a Service
@@ -104,7 +107,13 @@ See `QUERY_SCRIPT_README.md` for detailed usage.
 
 ### Domain Setup
 1. Point your domain to your server
-2. Update `SEARXNG_BASE_URL` in `.env` to use your domain
+2. Update environment variables in `.env`:
+   ```env
+   SEARXNG_PROTOCOL=https
+   SEARXNG_HOST=your-domain.com
+   SEARXNG_PORT=443
+   SEARXNG_BASE_URL=${SEARXNG_PROTOCOL}://${SEARXNG_HOST}:${SEARXNG_PORT}/
+   ```
 3. Ensure ports 80/443 are open
 
 ### Security
@@ -133,8 +142,8 @@ docker compose down && docker compose up -d
 ```
 
 ### Can't Access Search
-- Verify port 7777 is open
-- Check `SEARXNG_BASE_URL` matches your setup
+- Verify your configured port (SEARXNG_PORT) is open
+- Check environment variables match your setup
 - Ensure services are running: `docker compose ps`
 
 ### Reset Everything

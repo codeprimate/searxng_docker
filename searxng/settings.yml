@@ -26,9 +26,9 @@ search:
   default_doi_resolver: "doi.org"
 
 server:
-  port: 7777
+  port: "${SEARXNG_PORT}"
   bind_address: "0.0.0.0"
-  base_url: false
+  base_url: "${SEARXNG_BASE_URL}"
   image_proxy: false
   http_protocol_version: "1.0"
   method: "POST"
@@ -41,7 +41,7 @@ ui:
   query_in_title: false
   infinite_scroll: false
   center_alignment: false
-  cache_url: "http://127.0.0.1:7777/static/cache/"
+  cache_url: "${SEARXNG_BASE_URL}static/cache/"
   default_theme: "simple"
   theme_args:
     simple_style: "auto"

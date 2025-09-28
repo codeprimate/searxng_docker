@@ -108,7 +108,7 @@ python searxng_search.py "slow query" --timeout 60
 | Option | Description | Default |
 |--------|-------------|---------|
 | `query` | Search query string (required) | - |
-| `--base-url` | SearXNG instance URL | `http://localhost` |
+| `--base-url` | SearXNG instance URL | Uses SEARXNG_PROTOCOL, SEARXNG_HOST, SEARXNG_PORT env vars |
 | `--format` | Response format (html/json) | `json` |
 | `--output` | Output format (pretty/json/simple) | `pretty` |
 | `--categories` | Comma-separated categories | All |
@@ -124,8 +124,8 @@ python searxng_search.py "slow query" --timeout 60
 ```python
 from searxng_search import SearXNGClient
 
-# Initialize client
-client = SearXNGClient(base_url="http://localhost")
+# Initialize client (uses environment variables by default)
+client = SearXNGClient()
 
 # Perform search
 results = client.search("python programming", categories=["general", "it"])
@@ -196,8 +196,12 @@ Error: JSON Decode Error: Expecting value: line 1 column 1 (char 0)
    docker compose up -d
    ```
 
-2. **404 Not Found**: Wrong base URL
+2. **404 Not Found**: Wrong base URL or environment variables
    ```bash
+   # Check environment variables
+   echo $SEARXNG_PROTOCOL $SEARXNG_HOST $SEARXNG_PORT
+   
+   # Or specify base URL explicitly
    python searxng_search.py "test" --base-url http://localhost:7777
    ```
 

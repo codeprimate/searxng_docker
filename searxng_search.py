@@ -5,6 +5,9 @@ SearXNG Query Script
 A Python script to query a running SearXNG instance and return search results.
 This script can be used to programmatically search using SearXNG.
 
+The script automatically loads environment variables from a .env file if present.
+Create a .env file with your SearXNG configuration (see env.example).
+
 Usage:
     python searxng_search.py "your search query"
     python searxng_search.py "python programming" --format json
@@ -13,24 +16,40 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 import urllib.parse
 import urllib.request
 from typing import Dict, List, Optional, Any
 import time
 
+# Load environment variables from .env file if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # python-dotenv not installed, continue without .env support
+    pass
+
 
 class SearXNGClient:
     """Client for interacting with SearXNG search engine."""
     
-    def __init__(self, base_url: str = "http://localhost:7777", timeout: int = 30):
+    def __init__(self, base_url: str = None, timeout: int = 30):
         """
         Initialize the SearXNG client.
         
         Args:
-            base_url: Base URL of the SearXNG instance
+            base_url: Base URL of the SearXNG instance (if None, uses environment variables)
             timeout: Request timeout in seconds
         """
+        if base_url is None:
+            # Build base URL from environment variables
+            protocol = os.environ.get('SEARXNG_PROTOCOL', 'http')
+            host = os.environ.get('SEARXNG_HOST', 'localhost')
+            port = os.environ.get('SEARXNG_PORT', '7777')
+            base_url = f"{protocol}://{host}:{port}"
+        
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
         self.search_url = f"{self.base_url}/search"
@@ -182,8 +201,8 @@ Examples:
     )
     
     parser.add_argument('query', help='Search query string')
-    parser.add_argument('--base-url', default='http://localhost:7777', 
-                       help='Base URL of SearXNG instance (default: http://localhost:7777)')
+    parser.add_argument('--base-url', default=None, 
+                       help='Base URL of SearXNG instance (default: uses SEARXNG_PROTOCOL, SEARXNG_HOST, SEARXNG_PORT env vars or .env file)')
     parser.add_argument('--format', choices=['html', 'json'], default='json',
                        help='Response format (default: json)')
     parser.add_argument('--output', choices=['pretty', 'json', 'simple'], default='pretty',
