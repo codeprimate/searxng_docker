@@ -26,7 +26,7 @@ search:
   default_doi_resolver: "doi.org"
 
 server:
-  port: "${SEARXNG_PORT}"
+  port: 8080
   bind_address: "0.0.0.0"
   base_url: "${SEARXNG_BASE_URL}"
   image_proxy: false
