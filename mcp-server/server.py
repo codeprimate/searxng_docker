@@ -11,6 +11,7 @@ import sys
 import urllib.parse
 import urllib.request
 from typing import Dict, List, Optional, Any
+from bs4 import BeautifulSoup
 
 # MCP imports
 from mcp.server import Server
@@ -23,6 +24,8 @@ from aiohttp import web, web_request
 # Configuration
 DEFAULT_TIMEOUT = 30
 DEFAULT_USER_AGENT = "SearXNG-MCP-Server/1.0"
+MAX_FETCH_LENGTH = 16384  # 16k characters default for full page content
+MAX_SEARCH_CONTENT_LENGTH = 200  # 200 characters for search result snippets
 
 # Embedded SearXNG Client
 class SearXNGClient:
@@ -63,7 +66,7 @@ class SearXNGClient:
             return {'error': str(e)}
     
     def fetch(self, url: str, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """Fetch content from a URL"""
+        """Fetch content from a URL and return clean text (HTML stripped)"""
         try:
             request = urllib.request.Request(url)
             request.add_header('User-Agent', DEFAULT_USER_AGENT)
@@ -74,13 +77,30 @@ class SearXNGClient:
                     request.add_header(key, value)
             
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                content = response.read().decode('utf-8')
+                raw_content = response.read().decode('utf-8')
+                
+                # Parse HTML and extract clean text
+                soup = BeautifulSoup(raw_content, 'html.parser')
+                
+                # Remove script and style elements
+                for script in soup(["script", "style"]):
+                    script.decompose()
+                
+                # Get clean text
+                clean_text = soup.get_text()
+                
+                # Clean up whitespace
+                lines = (line.strip() for line in clean_text.splitlines())
+                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                clean_text = '\n'.join(chunk for chunk in chunks if chunk)
+                
                 return {
                     'url': url,
                     'status_code': response.status,
                     'headers': dict(response.headers),
-                    'content': content,
-                    'content_length': len(content)
+                    'content': clean_text,
+                    'content_length': len(clean_text),
+                    'original_content_length': len(raw_content)
                 }
         except Exception as e:
             return {'error': str(e), 'url': url}
@@ -108,7 +128,7 @@ async def list_tools() -> List[Tool]:
         ),
         Tool(
             name="fetch",
-            description="Fetch content from a URL",
+            description="Fetch content from a URL and return clean text (HTML stripped)",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -152,8 +172,8 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
             content = result.get('content', '')
             engine = result.get('engine', 'N/A')
             
-            if content and len(content) > 200:
-                content = content[:200] + "..."
+            if content and len(content) > MAX_SEARCH_CONTENT_LENGTH:
+                content = content[:MAX_SEARCH_CONTENT_LENGTH] + "..."
             
             formatted_results.append(f"{i}. {title}\n   URL: {url}\n   Engine: {engine}\n   Content: {content}\n")
         
@@ -176,14 +196,16 @@ async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         # Format response
         response = f"Fetched content from: {result['url']}\n"
         response += f"Status Code: {result['status_code']}\n"
-        response += f"Content Length: {result['content_length']} characters\n\n"
+        if 'original_content_length' in result:
+            response += f"Original Content Length: {result['original_content_length']} characters\n"
+        response += f"Clean Text Length: {result['content_length']} characters\n\n"
         
         # Truncate content if too long
         content = result['content']
-        if len(content) > 1000:
-            content = content[:1000] + "...\n[Content truncated]"
+        if len(content) > MAX_FETCH_LENGTH:
+            content = content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
         
-        response += f"Content:\n{content}"
+        response += f"Clean Text Content:\n{content}"
         
         return [TextContent(type="text", text=response)]
     
@@ -249,7 +271,7 @@ async def tools_endpoint(request: web_request.Request) -> web.Response:
         },
         {
             "name": "fetch",
-            "description": "Fetch content from a URL provided by SearXNG metasearch engine",
+            "description": "Fetch content from a URL and return clean text (HTML stripped)",
             "inputSchema": {
                 "type": "object",
                 "properties": {
