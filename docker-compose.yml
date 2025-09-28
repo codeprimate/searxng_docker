@@ -38,6 +38,28 @@ services:
       - searxng
     restart: unless-stopped
 
+  searxng-mcp:
+    build: ./mcp-server
+    container_name: searxng-mcp
+    ports:
+      - "${SEARXNG_MCP_PORT}:${SEARXNG_MCP_PORT}"
+    environment:
+      - SEARXNG_PROTOCOL=${SEARXNG_PROTOCOL}
+      - SEARXNG_HOST=searxng
+      - SEARXNG_PORT=${SEARXNG_PORT}
+      - PORT=${SEARXNG_MCP_PORT}
+    depends_on:
+      - searxng
+    networks:
+      - searxng
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${SEARXNG_MCP_PORT}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 volumes:
   redis-data:
 
