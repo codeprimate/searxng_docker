@@ -23,10 +23,23 @@ from mcp.types import Tool, TextContent
 from aiohttp import web, web_request
 
 # Configuration
-DEFAULT_TIMEOUT = 30
+DEFAULT_TIMEOUT = 10
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 MAX_FETCH_LENGTH = 16384  # 16k characters default for full page content
 MAX_SEARCH_CONTENT_LENGTH = 200  # 200 characters for search result snippets
+
+# Error messages
+ERROR_QUERY_REQUIRED = "Error: Query is required"
+ERROR_URL_REQUIRED = "Error: URL is required"
+ERROR_UNKNOWN_TOOL = "Unknown tool: {name}"
+ERROR_SEARCH_PREFIX = "Search error: {error}"
+ERROR_FETCH_PREFIX = "Fetch error: {error}"
+ERROR_CRAWL_PREFIX = "Crawl error: {error}"
+
+# Response formatting
+NO_RESULTS_FOUND = "No results found"
+CONTENT_TRUNCATED = "...\n[Content truncated]"
+LINKS_SECTION_MARKER = "\n\nLinks found on this page:"
 
 # Embedded SearXNG Client
 class SearXNGClient:
@@ -202,6 +215,31 @@ class SearXNGClient:
         except Exception as e:
             return {'error': str(e), 'url': url}
 
+# Helper functions for content processing
+def truncate_content_with_links(content: str, max_length: int = MAX_FETCH_LENGTH) -> str:
+    """Truncate content while preserving links section if present."""
+    if len(content) <= max_length:
+        return content
+    
+    links_section_start = content.find(LINKS_SECTION_MARKER)
+    if links_section_start != -1:
+        # Truncate main content but keep links section
+        main_content = content[:links_section_start]
+        links_section = content[links_section_start:]
+        if len(main_content) > max_length:
+            main_content = main_content[:max_length] + CONTENT_TRUNCATED
+        return main_content + links_section
+    else:
+        return content[:max_length] + CONTENT_TRUNCATED
+
+def create_error_response(message: str) -> List[TextContent]:
+    """Create a standardized error response."""
+    return [TextContent(type="text", text=message)]
+
+def parse_comma_separated(value: Optional[str]) -> Optional[List[str]]:
+    """Parse comma-separated string into list, return None if empty."""
+    return value.split(',') if value else None
+
 # MCP Server
 app = Server("searxng-mcp")
 client = SearXNGClient()
@@ -251,162 +289,134 @@ async def list_tools() -> List[Tool]:
         )
     ]
 
-@app.call_tool()
-async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-    if name == "search":
-        query = arguments.get("query")
-        if not query:
-            return [TextContent(type="text", text="Error: Query is required")]
-        
-        categories = arguments.get("categories")
-        engines = arguments.get("engines")
-        language = arguments.get("language", "en")
-        
-        # Parse comma-separated strings
-        categories_list = categories.split(',') if categories else None
-        engines_list = engines.split(',') if engines else None
-        
-        # Perform search
-        results = client.search(query, categories_list, engines_list, language)
-        
-        if 'error' in results:
-            return [TextContent(type="text", text=f"Search error: {results['error']}")]
-        
-        # Format results
-        if 'results' not in results or not results['results']:
-            return [TextContent(type="text", text="No results found")]
-        
-        formatted_results = []
-        for i, result in enumerate(results['results'][:10], 1):
-            title = result.get('title', 'N/A')
-            url = result.get('url', 'N/A')
-            content = result.get('content', '')
-            engine = result.get('engine', 'N/A')
-            
-            if content and len(content) > MAX_SEARCH_CONTENT_LENGTH:
-                content = content[:MAX_SEARCH_CONTENT_LENGTH] + "..."
-            
-            formatted_results.append(f"{i}. {title}\n   URL: {url}\n   Engine: {engine}\n   Content: {content}\n")
-        
-        response = f"Search results for '{query}':\n\n" + "\n".join(formatted_results)
-        return [TextContent(type="text", text=response)]
+# Tool handler methods
+async def handle_search_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Handle search tool requests."""
+    query = arguments.get("query")
+    if not query:
+        return create_error_response(ERROR_QUERY_REQUIRED)
     
-    elif name == "fetch":
-        url = arguments.get("url")
-        if not url:
-            return [TextContent(type="text", text="Error: URL is required")]
-        
-        headers = arguments.get("headers")
-        
-        # Perform fetch
-        result = client.fetch(url, headers)
-        
-        if 'error' in result:
-            return [TextContent(type="text", text=f"Fetch error: {result['error']}")]
-        
-        # Format response
-        response = f"Fetched content from: {result['url']}\n"
-        response += f"Status Code: {result['status_code']}\n"
-        if 'original_content_length' in result:
-            response += f"Original Content Length: {result['original_content_length']} characters\n"
-        response += f"Clean Text Length: {result['content_length']} characters\n\n"
-        
-        # Truncate content if too long, but preserve links section
-        content = result['content']
-        if len(content) > MAX_FETCH_LENGTH:
-            # Check if there's a links section at the end
-            links_section_start = content.find("\n\nLinks found on this page:")
-            if links_section_start != -1:
-                # Truncate main content but keep links section
-                main_content = content[:links_section_start]
-                links_section = content[links_section_start:]
-                if len(main_content) > MAX_FETCH_LENGTH:
-                    main_content = main_content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
-                content = main_content + links_section
-            else:
-                content = content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
-        
-        response += f"Clean Text Content:\n{content}"
-        
-        return [TextContent(type="text", text=response)]
+    categories = parse_comma_separated(arguments.get("categories"))
+    engines = parse_comma_separated(arguments.get("engines"))
+    language = arguments.get("language", "en")
     
-    elif name == "crawl":
-        url = arguments.get("url")
-        if not url:
-            return [TextContent(type="text", text="Error: URL is required")]
+    # Perform search
+    results = client.search(query, categories, engines, language)
+    
+    if 'error' in results:
+        return create_error_response(ERROR_SEARCH_PREFIX.format(error=results['error']))
+    
+    # Format results
+    if 'results' not in results or not results['results']:
+        return [TextContent(type="text", text=NO_RESULTS_FOUND)]
+    
+    formatted_results = []
+    for i, result in enumerate(results['results'][:10], 1):
+        title = result.get('title', 'N/A')
+        url = result.get('url', 'N/A')
+        content = result.get('content', '')
+        engine = result.get('engine', 'N/A')
         
-        filters = arguments.get("filters")
-        headers = arguments.get("headers")
-        subpage_limit = arguments.get("subpage_limit", 5)
+        if content and len(content) > MAX_SEARCH_CONTENT_LENGTH:
+            content = content[:MAX_SEARCH_CONTENT_LENGTH] + "..."
         
-        # Perform crawl
-        result = client.crawl(url, filters, headers, subpage_limit)
-        
-        if 'error' in result:
-            return [TextContent(type="text", text=f"Crawl error: {result['error']}")]
-        
-        # Format response
-        response = f"Crawled: {result['main_page']['url']}\n"
-        response += f"Main page content length: {result['main_page']['content_length']} characters\n"
-        response += f"Total subpages found: {result['total_subpages_found']}\n"
-        response += f"Subpages returned: {result['subpages_returned']}\n"
-        
-        if result['filters_applied']:
-            response += f"Filters applied: {', '.join(result['filters_applied'])}\n"
-        
-        response += "\n" + "="*50 + "\n"
-        response += "MAIN PAGE CONTENT:\n"
+        formatted_results.append(f"{i}. {title}\n   URL: {url}\n   Engine: {engine}\n   Content: {content}\n")
+    
+    response = f"Search results for '{query}':\n\n" + "\n".join(formatted_results)
+    return [TextContent(type="text", text=response)]
+
+async def handle_fetch_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Handle fetch tool requests."""
+    url = arguments.get("url")
+    if not url:
+        return create_error_response(ERROR_URL_REQUIRED)
+    
+    headers = arguments.get("headers")
+    
+    # Perform fetch
+    result = client.fetch(url, headers)
+    
+    if 'error' in result:
+        return create_error_response(ERROR_FETCH_PREFIX.format(error=result['error']))
+    
+    # Format response
+    response = f"Fetched content from: {result['url']}\n"
+    response += f"Status Code: {result['status_code']}\n"
+    if 'original_content_length' in result:
+        response += f"Original Content Length: {result['original_content_length']} characters\n"
+    response += f"Clean Text Length: {result['content_length']} characters\n\n"
+    
+    # Truncate content if too long, but preserve links section
+    content = truncate_content_with_links(result['content'])
+    response += f"Clean Text Content:\n{content}"
+    
+    return [TextContent(type="text", text=response)]
+
+async def handle_crawl_tool(arguments: Dict[str, Any]) -> List[TextContent]:
+    """Handle crawl tool requests."""
+    url = arguments.get("url")
+    if not url:
+        return create_error_response(ERROR_URL_REQUIRED)
+    
+    filters = arguments.get("filters")
+    headers = arguments.get("headers")
+    subpage_limit = arguments.get("subpage_limit", 5)
+    
+    # Perform crawl
+    result = client.crawl(url, filters, headers, subpage_limit)
+    
+    if 'error' in result:
+        return create_error_response(ERROR_CRAWL_PREFIX.format(error=result['error']))
+    
+    # Format response
+    response = f"Crawled: {result['main_page']['url']}\n"
+    response += f"Main page content length: {result['main_page']['content_length']} characters\n"
+    response += f"Total subpages found: {result['total_subpages_found']}\n"
+    response += f"Subpages returned: {result['subpages_returned']}\n"
+    
+    if result['filters_applied']:
+        response += f"Filters applied: {', '.join(result['filters_applied'])}\n"
+    
+    response += "\n" + "="*50 + "\n"
+    response += "MAIN PAGE CONTENT:\n"
+    response += "="*50 + "\n"
+    
+    # Truncate main page content if too long, but preserve links section
+    main_content = truncate_content_with_links(result['main_page']['content'])
+    response += f"{main_content}\n\n"
+    
+    # Add subpages
+    if result['subpages']:
+        response += "="*50 + "\n"
+        response += "SUBPAGES:\n"
         response += "="*50 + "\n"
         
-        # Truncate main page content if too long, but preserve links section
-        main_content = result['main_page']['content']
-        if len(main_content) > MAX_FETCH_LENGTH:
-            # Check if there's a links section at the end
-            links_section_start = main_content.find("\n\nLinks found on this page:")
-            if links_section_start != -1:
-                # Truncate main content but keep links section
-                main_text = main_content[:links_section_start]
-                links_section = main_content[links_section_start:]
-                if len(main_text) > MAX_FETCH_LENGTH:
-                    main_text = main_text[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
-                main_content = main_text + links_section
-            else:
-                main_content = main_content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
-        
-        response += f"{main_content}\n\n"
-        
-        # Add subpages
-        if result['subpages']:
-            response += "="*50 + "\n"
-            response += "SUBPAGES:\n"
-            response += "="*50 + "\n"
+        for i, subpage in enumerate(result['subpages'], 1):
+            response += f"\n{i}. {subpage['anchor_text']}\n"
+            response += f"   URL: {subpage['url']}\n"
+            response += f"   Content Length: {subpage['content_length']} characters\n"
             
-            for i, subpage in enumerate(result['subpages'], 1):
-                response += f"\n{i}. {subpage['anchor_text']}\n"
-                response += f"   URL: {subpage['url']}\n"
-                response += f"   Content Length: {subpage['content_length']} characters\n"
-                
-                # Truncate subpage content if too long, but preserve links section
-                subpage_content = subpage['content']
-                if len(subpage_content) > MAX_FETCH_LENGTH:
-                    # Check if there's a links section at the end
-                    links_section_start = subpage_content.find("\n\nLinks found on this page:")
-                    if links_section_start != -1:
-                        # Truncate main content but keep links section
-                        main_text = subpage_content[:links_section_start]
-                        links_section = subpage_content[links_section_start:]
-                        if len(main_text) > MAX_FETCH_LENGTH:
-                            main_text = main_text[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
-                        subpage_content = main_text + links_section
-                    else:
-                        subpage_content = subpage_content[:MAX_FETCH_LENGTH] + "...\n[Content truncated]"
-                
-                response += f"   Content: {subpage_content}\n"
-                response += "-" * 30 + "\n"
-        
-        return [TextContent(type="text", text=response)]
+            # Truncate subpage content if too long, but preserve links section
+            subpage_content = truncate_content_with_links(subpage['content'])
+            response += f"   Content: {subpage_content}\n"
+            response += "-" * 30 + "\n"
     
-    return [TextContent(type="text", text=f"Unknown tool: {name}")]
+    return [TextContent(type="text", text=response)]
+
+@app.call_tool()
+async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+    """Dispatch tool calls to appropriate handlers."""
+    tool_handlers = {
+        "search": handle_search_tool,
+        "fetch": handle_fetch_tool,
+        "crawl": handle_crawl_tool
+    }
+    
+    handler = tool_handlers.get(name)
+    if handler:
+        return await handler(arguments)
+    
+    return create_error_response(ERROR_UNKNOWN_TOOL.format(name=name))
 
 # Web server routes
 async def search_endpoint(request: web_request.Request) -> web.Response:
