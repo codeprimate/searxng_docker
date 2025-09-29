@@ -13,16 +13,16 @@ services:
     image: searxng/searxng:latest
     container_name: searxng
     ports:
-      - "${SEARXNG_PORT}:${SEARXNG_PORT}"
+      - "${SEARXNG_PORT:-7777}:${SEARXNG_PORT:-7777}"
     volumes:
       - ./searxng:/etc/searxng:rw
     environment:
-      - SEARXNG_PROTOCOL=${SEARXNG_PROTOCOL}
-      - SEARXNG_HOST=${SEARXNG_HOST}
-      - SEARXNG_PORT=${SEARXNG_PORT}
-      - GRANIAN_PORT=${SEARXNG_PORT}
-      - SEARXNG_BASE_URL=${SEARXNG_BASE_URL}
-      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY}
+      - SEARXNG_PROTOCOL=${SEARXNG_PROTOCOL:-http}
+      - SEARXNG_HOST=${SEARXNG_HOST:-localhost}
+      - SEARXNG_PORT=${SEARXNG_PORT:-7777}
+      - GRANIAN_PORT=${SEARXNG_PORT:-7777}
+      - SEARXNG_BASE_URL=${SEARXNG_BASE_URL:-http://localhost:7777}
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-supersecretkey}
     cap_drop:
       - ALL
     cap_add:
@@ -37,24 +37,30 @@ services:
     networks:
       - searxng
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://${SEARXNG_HOST:-localhost}:${SEARXNG_PORT:-7777}/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   searxng-mcp:
     build: ./mcp-server
     container_name: searxng-mcp
     ports:
-      - "${SEARXNG_MCP_PORT}:${SEARXNG_MCP_PORT}"
+      - "${SEARXNG_MCP_PORT:-7778}:${SEARXNG_MCP_PORT:-7778}"
     environment:
-      - SEARXNG_PROTOCOL=${SEARXNG_PROTOCOL}
+      - SEARXNG_PROTOCOL=${SEARXNG_PROTOCOL:-http}
       - SEARXNG_HOST=searxng
-      - SEARXNG_PORT=${SEARXNG_PORT}
-      - PORT=${SEARXNG_MCP_PORT}
+      - SEARXNG_PORT=${SEARXNG_PORT:-7777}
+      - PORT=${SEARXNG_MCP_PORT:-7778}
     depends_on:
       - searxng
     networks:
       - searxng
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${SEARXNG_MCP_PORT}/health"]
+      test: ["CMD", "curl", "-f", "http://${SEARXNG_HOST:-localhost}:${SEARXNG_MCP_PORT:-7778}/health"]
       interval: 30s
       timeout: 10s
       retries: 3
