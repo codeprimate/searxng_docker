@@ -68,6 +68,7 @@ services:
 
 volumes:
   redis-data:
+    name: searxng-redis-data
 
 networks:
   searxng:
