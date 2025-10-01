@@ -60,7 +60,7 @@ services:
       - searxng
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://${SEARXNG_HOST:-localhost}:${SEARXNG_MCP_PORT:-7778}/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:${SEARXNG_MCP_PORT:-7778}/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
