@@ -74,12 +74,6 @@ Copy the output to `SEARXNG_SECRET_KEY` in your `.env` file.
 ```bash
 # Start all services
 docker compose up -d
-
-# Check status
-docker compose ps
-
-# View logs
-docker compose logs -f
 ```
 
 ### 5. Access Search Engine
@@ -133,33 +127,6 @@ python searxng_search.py "python" --output json
 
 See `QUERY_SCRIPT_README.md` for detailed usage.
 
-## Production Deployment
-
-### Domain Setup
-1. Point your domain to your server
-2. Update environment variables in `.env`:
-   ```env
-   SEARXNG_PROTOCOL=https
-   SEARXNG_HOST=your-domain.com
-   SEARXNG_PORT=443
-   SEARXNG_BASE_URL=${SEARXNG_PROTOCOL}://${SEARXNG_HOST}:${SEARXNG_PORT}/
-   ```
-3. Ensure ports 80/443 are open
-
-### Security
-- Change the default secret key
-- Use HTTPS (automatic with proper domain setup)
-- Keep Docker images updated
-
-### Backup
-```bash
-# Backup configuration
-tar -czf searxng-backup.tar.gz searxng/ .env
-
-# Backup Redis data
-docker compose exec redis redis-cli BGSAVE
-```
-
 ## Troubleshooting
 
 ### Services Won't Start
@@ -196,7 +163,6 @@ docker compose up -d
 Logs are automatically rotated (1MB max, 1 file kept)
 
 ### Performance
-- Redis caching improves response times
 - Adjust search engines in `searxng/settings.yml` if needed
 
 ## Acknowledgments
