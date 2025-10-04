@@ -22,11 +22,27 @@ from mcp.types import Tool, TextContent
 # Web server imports
 from aiohttp import web, web_request
 
-# Configuration
-DEFAULT_TIMEOUT = 10
+# =============================================================================
+# CONFIGURATION CONSTANTS
+# =============================================================================
+
+# Network & Timeout Settings
+DEFAULT_TIMEOUT = 5
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-MAX_FETCH_LENGTH = 16384  # 16k characters default for full page content
-MAX_SEARCH_CONTENT_LENGTH = 200  # 200 characters for search result snippets
+
+# Content Limits (set to None for no truncation by default)
+DEFAULT_FETCH_CONTENT_LIMIT = None  # No truncation by default
+DEFAULT_SEARCH_SNIPPET_LIMIT = None  # No truncation by default
+DEFAULT_SEARCH_RESULTS_LIMIT = 20  # Configurable search results limit
+
+# Crawl Limits
+DEFAULT_SUBPAGE_LIMIT = 5 
+MAX_SUBPAGE_LIMIT = 10 
+
+# Safety Limits (hard limits to prevent abuse)
+MAX_FETCH_CONTENT_LIMIT = 1024 * 1024  # 1MB hard limit
+MAX_SEARCH_SNIPPET_LIMIT = 10000  # 10k chars hard limit
+MAX_SEARCH_RESULTS_LIMIT = 100  # 100 results hard limit
 
 # Error messages
 ERROR_QUERY_REQUIRED = "Error: Query is required"
@@ -55,17 +71,22 @@ class SearXNGClient:
         self.search_url = f"{self.base_url}/search"
     
     def search(self, query: str, categories: Optional[List[str]] = None,
-               engines: Optional[List[str]] = None, language: str = "en") -> Dict[str, Any]:
+               engines: Optional[List[str]] = None, language: str = "en",
+               time_range: Optional[str] = None, pageno: int = 1) -> Dict[str, Any]:
         params = {
             'q': query,
             'format': 'json',
-            'lang': language
+            'language': language,
+            'safesearch': 0,  # Always off
+            'pageno': pageno
         }
         
         if categories:
             params['categories'] = ','.join(categories)
         if engines:
             params['engines'] = ','.join(engines)
+        if time_range:
+            params['time_range'] = time_range
         
         url = f"{self.search_url}?{urllib.parse.urlencode(params)}"
         
@@ -138,7 +159,8 @@ class SearXNGClient:
             return {'error': str(e), 'url': url}
     
     def crawl(self, url: str, filters: Optional[List[str]] = None, 
-              headers: Optional[Dict[str, str]] = None, subpage_limit: int = 5) -> Dict[str, Any]:
+              headers: Optional[Dict[str, str]] = None, subpage_limit: int = DEFAULT_SUBPAGE_LIMIT,
+              max_content_length: Optional[int] = None) -> Dict[str, Any]:
         """Crawl a page and return its content plus up to subpage_limit subpages that match filter criteria"""
         try:
             # First, fetch the main page content
@@ -193,11 +215,19 @@ class SearXNGClient:
             for link_info in selected_links:
                 subpage_result = self.fetch(link_info['url'], headers)
                 if 'error' not in subpage_result:
+                    content = subpage_result['content']
+                    content_length = subpage_result['content_length']
+                    
+                    # Apply content length limit if specified
+                    if max_content_length is not None and len(content) > max_content_length:
+                        content = truncate_content_with_links(content, max_content_length)
+                        content_length = len(content)
+                    
                     subpages.append({
                         'url': link_info['url'],
                         'anchor_text': link_info['anchor_text'],
-                        'content': subpage_result['content'],
-                        'content_length': subpage_result['content_length']
+                        'content': content,
+                        'content_length': content_length
                     })
             
             return {
@@ -216,9 +246,9 @@ class SearXNGClient:
             return {'error': str(e), 'url': url}
 
 # Helper functions for content processing
-def truncate_content_with_links(content: str, max_length: int = MAX_FETCH_LENGTH) -> str:
+def truncate_content_with_links(content: str, max_length: int) -> str:
     """Truncate content while preserving links section if present."""
-    if len(content) <= max_length:
+    if max_length is None or len(content) <= max_length:
         return content
     
     links_section_start = content.find(LINKS_SECTION_MARKER)
@@ -254,9 +284,12 @@ async def list_tools() -> List[Tool]:
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Search query"},
-                    "categories": {"type": "string", "description": "Comma-separated categories (optional)"},
-                    "engines": {"type": "string", "description": "Comma-separated engines (optional)"},
-                    "language": {"type": "string", "description": "Language code (default: en)"}
+                    "categories": {"type": "string", "description": "Comma-separated categories (general,it,videos,images)"},
+                    "engines": {"type": "string", "description": "Comma-separated engines (bing,duckduckgo,google,startpage,wikipedia,github,reddit,youtube,stackexchange,etc.)"},
+                    "language": {"type": "string", "description": "Language code (default: en)"},
+                    "time_range": {"type": "string", "description": "Time range for search results (day, month, year)"},
+                    "pageno": {"type": "integer", "description": "Page number for pagination (default: 1)"},
+                    "max_results": {"type": "integer", "description": f"Maximum number of results to return (default: {DEFAULT_SEARCH_RESULTS_LIMIT}, max: {MAX_SEARCH_RESULTS_LIMIT})"}
                 },
                 "required": ["query"]
             }
@@ -268,7 +301,8 @@ async def list_tools() -> List[Tool]:
                 "type": "object",
                 "properties": {
                     "url": {"type": "string", "description": "URL to fetch content from"},
-                    "headers": {"type": "object", "description": "Optional custom headers as key-value pairs"}
+                    "headers": {"type": "object", "description": "Optional custom headers as key-value pairs"},
+                    "max_content_length": {"type": "integer", "description": f"Maximum content length in characters (default: no limit, max: {MAX_FETCH_CONTENT_LIMIT})"}
                 },
                 "required": ["url"]
             }
@@ -282,7 +316,8 @@ async def list_tools() -> List[Tool]:
                     "url": {"type": "string", "description": "URL to crawl"},
                     "filters": {"type": "array", "items": {"type": "string"}, "description": "Array of strings to filter anchor text (at least one must match)"},
                     "headers": {"type": "object", "description": "Optional custom headers as key-value pairs"},
-                    "subpage_limit": {"type": "integer", "description": "Maximum number of subpages to crawl (default: 5)"}
+                    "subpage_limit": {"type": "integer", "description": f"Maximum number of subpages to crawl (default: {DEFAULT_SUBPAGE_LIMIT}, max: {MAX_SUBPAGE_LIMIT})"},
+                    "max_content_length": {"type": "integer", "description": f"Maximum content length per page in characters (default: no limit, max: {MAX_FETCH_CONTENT_LIMIT})"}
                 },
                 "required": ["url"]
             }
@@ -299,9 +334,20 @@ async def handle_search_tool(arguments: Dict[str, Any]) -> List[TextContent]:
     categories = parse_comma_separated(arguments.get("categories"))
     engines = parse_comma_separated(arguments.get("engines"))
     language = arguments.get("language", "en")
+    time_range = arguments.get("time_range")
+    pageno = arguments.get("pageno", 1)
+    max_results = arguments.get("max_results", DEFAULT_SEARCH_RESULTS_LIMIT)
+    
+    # Validate time_range parameter
+    if time_range and time_range not in ['day', 'month', 'year']:
+        return create_error_response("Error: time_range must be one of: day, month, year")
+    
+    # Enforce safety limits
+    max_results = min(max_results, MAX_SEARCH_RESULTS_LIMIT)
+    pageno = max(1, pageno)  # Ensure pageno is at least 1
     
     # Perform search
-    results = client.search(query, categories, engines, language)
+    results = client.search(query, categories, engines, language, time_range, pageno)
     
     if 'error' in results:
         return create_error_response(ERROR_SEARCH_PREFIX.format(error=results['error']))
@@ -311,18 +357,21 @@ async def handle_search_tool(arguments: Dict[str, Any]) -> List[TextContent]:
         return [TextContent(type="text", text=NO_RESULTS_FOUND)]
     
     formatted_results = []
-    for i, result in enumerate(results['results'][:10], 1):
+    for i, result in enumerate(results['results'][:max_results], 1):
         title = result.get('title', 'N/A')
         url = result.get('url', 'N/A')
         content = result.get('content', '')
         engine = result.get('engine', 'N/A')
         
-        if content and len(content) > MAX_SEARCH_CONTENT_LENGTH:
-            content = content[:MAX_SEARCH_CONTENT_LENGTH] + "..."
+        # Only truncate content if explicitly requested or exceeds safety limit
+        if content and DEFAULT_SEARCH_SNIPPET_LIMIT is not None and len(content) > DEFAULT_SEARCH_SNIPPET_LIMIT:
+            content = content[:DEFAULT_SEARCH_SNIPPET_LIMIT] + "..."
+        elif content and len(content) > MAX_SEARCH_SNIPPET_LIMIT:
+            content = content[:MAX_SEARCH_SNIPPET_LIMIT] + "..."
         
         formatted_results.append(f"{i}. {title}\n   URL: {url}\n   Engine: {engine}\n   Content: {content}\n")
     
-    response = f"Search results for '{query}':\n\n" + "\n".join(formatted_results)
+    response = f"Search results for '{query}' (showing {len(formatted_results)} of {len(results['results'])} results):\n\n" + "\n".join(formatted_results)
     return [TextContent(type="text", text=response)]
 
 async def handle_fetch_tool(arguments: Dict[str, Any]) -> List[TextContent]:
@@ -332,6 +381,11 @@ async def handle_fetch_tool(arguments: Dict[str, Any]) -> List[TextContent]:
         return create_error_response(ERROR_URL_REQUIRED)
     
     headers = arguments.get("headers")
+    max_content_length = arguments.get("max_content_length", DEFAULT_FETCH_CONTENT_LIMIT)
+    
+    # Enforce safety limits
+    if max_content_length is not None:
+        max_content_length = min(max_content_length, MAX_FETCH_CONTENT_LIMIT)
     
     # Perform fetch
     result = client.fetch(url, headers)
@@ -346,8 +400,11 @@ async def handle_fetch_tool(arguments: Dict[str, Any]) -> List[TextContent]:
         response += f"Original Content Length: {result['original_content_length']} characters\n"
     response += f"Clean Text Length: {result['content_length']} characters\n\n"
     
-    # Truncate content if too long, but preserve links section
-    content = truncate_content_with_links(result['content'])
+    # Apply content length limit if specified
+    content = result['content']
+    if max_content_length is not None and len(content) > max_content_length:
+        content = truncate_content_with_links(content, max_content_length)
+    
     response += f"Clean Text Content:\n{content}"
     
     return [TextContent(type="text", text=response)]
@@ -360,10 +417,16 @@ async def handle_crawl_tool(arguments: Dict[str, Any]) -> List[TextContent]:
     
     filters = arguments.get("filters")
     headers = arguments.get("headers")
-    subpage_limit = arguments.get("subpage_limit", 5)
+    subpage_limit = arguments.get("subpage_limit", DEFAULT_SUBPAGE_LIMIT)
+    max_content_length = arguments.get("max_content_length", DEFAULT_FETCH_CONTENT_LIMIT)
+    
+    # Enforce safety limits
+    subpage_limit = min(subpage_limit, MAX_SUBPAGE_LIMIT)
+    if max_content_length is not None:
+        max_content_length = min(max_content_length, MAX_FETCH_CONTENT_LIMIT)
     
     # Perform crawl
-    result = client.crawl(url, filters, headers, subpage_limit)
+    result = client.crawl(url, filters, headers, subpage_limit, max_content_length)
     
     if 'error' in result:
         return create_error_response(ERROR_CRAWL_PREFIX.format(error=result['error']))
@@ -381,8 +444,11 @@ async def handle_crawl_tool(arguments: Dict[str, Any]) -> List[TextContent]:
     response += "MAIN PAGE CONTENT:\n"
     response += "="*50 + "\n"
     
-    # Truncate main page content if too long, but preserve links section
-    main_content = truncate_content_with_links(result['main_page']['content'])
+    # Apply content length limit to main page if specified
+    main_content = result['main_page']['content']
+    if max_content_length is not None and len(main_content) > max_content_length:
+        main_content = truncate_content_with_links(main_content, max_content_length)
+    
     response += f"{main_content}\n\n"
     
     # Add subpages
@@ -396,9 +462,8 @@ async def handle_crawl_tool(arguments: Dict[str, Any]) -> List[TextContent]:
             response += f"   URL: {subpage['url']}\n"
             response += f"   Content Length: {subpage['content_length']} characters\n"
             
-            # Truncate subpage content if too long, but preserve links section
-            subpage_content = truncate_content_with_links(subpage['content'])
-            response += f"   Content: {subpage_content}\n"
+            # Content is already truncated in the crawl method if needed
+            response += f"   Content: {subpage['content']}\n"
             response += "-" * 30 + "\n"
     
     return [TextContent(type="text", text=response)]
@@ -429,13 +494,28 @@ async def search_endpoint(request: web_request.Request) -> web.Response:
         categories = data.get('categories')
         engines = data.get('engines')
         language = data.get('language', 'en')
+        time_range = data.get('time_range')
+        pageno = data.get('pageno', 1)
+        max_results = data.get('max_results', DEFAULT_SEARCH_RESULTS_LIMIT)
+        
+        # Validate time_range parameter
+        if time_range and time_range not in ['day', 'month', 'year']:
+            return web.json_response({'error': 'time_range must be one of: day, month, year'}, status=400)
         
         # Parse comma-separated strings
         categories_list = categories.split(',') if categories else None
         engines_list = engines.split(',') if engines else None
         
+        # Enforce safety limits
+        max_results = min(max_results, MAX_SEARCH_RESULTS_LIMIT)
+        pageno = max(1, pageno)  # Ensure pageno is at least 1
+        
         # Perform search
-        results = client.search(query, categories_list, engines_list, language)
+        results = client.search(query, categories_list, engines_list, language, time_range, pageno)
+        
+        # Apply result limit
+        if 'results' in results and results['results']:
+            results['results'] = results['results'][:max_results]
         
         return web.json_response(results)
     except Exception as e:
@@ -452,9 +532,19 @@ async def fetch_endpoint(request: web_request.Request) -> web.Response:
             return web.json_response({'error': 'URL is required'}, status=400)
         
         headers = data.get('headers')
+        max_content_length = data.get('max_content_length', DEFAULT_FETCH_CONTENT_LIMIT)
+        
+        # Enforce safety limits
+        if max_content_length is not None:
+            max_content_length = min(max_content_length, MAX_FETCH_CONTENT_LIMIT)
         
         # Perform fetch
         result = client.fetch(url, headers)
+        
+        # Apply content length limit if specified
+        if 'content' in result and max_content_length is not None and len(result['content']) > max_content_length:
+            result['content'] = truncate_content_with_links(result['content'], max_content_length)
+            result['content_length'] = len(result['content'])
         
         return web.json_response(result)
     except Exception as e:
@@ -469,13 +559,16 @@ async def crawl_endpoint(request: web_request.Request) -> web.Response:
         
         filters = data.get('filters')
         headers = data.get('headers')
-        subpage_limit = data.get('subpage_limit', 5)
+        subpage_limit = data.get('subpage_limit', DEFAULT_SUBPAGE_LIMIT)
+        max_content_length = data.get('max_content_length', DEFAULT_FETCH_CONTENT_LIMIT)
         
-        # Enforce maximum limit of 10 subpages
-        subpage_limit = min(subpage_limit, 10)
+        # Enforce safety limits
+        subpage_limit = min(subpage_limit, MAX_SUBPAGE_LIMIT)
+        if max_content_length is not None:
+            max_content_length = min(max_content_length, MAX_FETCH_CONTENT_LIMIT)
         
         # Perform crawl
-        result = client.crawl(url, filters, headers, subpage_limit)
+        result = client.crawl(url, filters, headers, subpage_limit, max_content_length)
         
         return web.json_response(result)
     except Exception as e:
@@ -490,9 +583,12 @@ async def tools_endpoint(request: web_request.Request) -> web.Response:
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Search query"},
-                    "categories": {"type": "string", "description": "Comma-separated categories (optional)"},
-                    "engines": {"type": "string", "description": "Comma-separated engines (optional)"},
-                    "language": {"type": "string", "description": "Language code (default: en)"}
+                    "categories": {"type": "string", "description": "Comma-separated categories (general,it,videos,images)"},
+                    "engines": {"type": "string", "description": "Comma-separated engines (bing,duckduckgo,google,startpage,wikipedia,github,reddit,youtube,stackexchange,etc.)"},
+                    "language": {"type": "string", "description": "Language code (default: en)"},
+                    "time_range": {"type": "string", "description": "Time range for search results (day, month, year)"},
+                    "pageno": {"type": "integer", "description": "Page number for pagination (default: 1)"},
+                    "max_results": {"type": "integer", "description": f"Maximum number of results to return (default: {DEFAULT_SEARCH_RESULTS_LIMIT}, max: {MAX_SEARCH_RESULTS_LIMIT})"}
                 },
                 "required": ["query"]
             }
@@ -504,7 +600,8 @@ async def tools_endpoint(request: web_request.Request) -> web.Response:
                 "type": "object",
                 "properties": {
                     "url": {"type": "string", "description": "URL to fetch content from"},
-                    "headers": {"type": "object", "description": "Optional custom headers as key-value pairs"}
+                    "headers": {"type": "object", "description": "Optional custom headers as key-value pairs"},
+                    "max_content_length": {"type": "integer", "description": f"Maximum content length in characters (default: no limit, max: {MAX_FETCH_CONTENT_LIMIT})"}
                 },
                 "required": ["url"]
             }
@@ -518,7 +615,8 @@ async def tools_endpoint(request: web_request.Request) -> web.Response:
                     "url": {"type": "string", "description": "URL to crawl"},
                     "filters": {"type": "array", "items": {"type": "string"}, "description": "Array of strings to filter anchor text (at least one must match)"},
                     "headers": {"type": "object", "description": "Optional custom headers as key-value pairs"},
-                    "subpage_limit": {"type": "integer", "description": "Maximum number of subpages to crawl (default: 5)"}
+                    "subpage_limit": {"type": "integer", "description": f"Maximum number of subpages to crawl (default: {DEFAULT_SUBPAGE_LIMIT}, max: {MAX_SUBPAGE_LIMIT})"},
+                    "max_content_length": {"type": "integer", "description": f"Maximum content length per page in characters (default: no limit, max: {MAX_FETCH_CONTENT_LIMIT})"}
                 },
                 "required": ["url"]
             }
