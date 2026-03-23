@@ -12,7 +12,7 @@ bot_detection:
   enabled: false
 
 brand:
-  public_instances: false
+  public_instances: ""
 
 search:
   safe_search: 0
