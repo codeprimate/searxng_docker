@@ -378,12 +378,10 @@ The `searxng-mcp` container exposes a small REST API on `${SEARXNG_MCP_PORT}` (d
 
 - `url` (string, required): page to fetch
 - `json_schema` (object, required): JSON Schema (supported subset; see `docs/extract-sidecar-specification.md`)
-- `prompt` (string, optional)
-- `content_format` (string, optional): `txt` \| `markdown` \| `html` (default `txt`)
-- `extraction_context` (object, optional)
+- `prompt` (string, optional): natural-language extraction instructions paired with `json_schema` (what to pull from the page, how to handle ambiguity); omit if the schema alone defines the task
 - `headers` (object, optional): headers for the **fetch** step
-- `max_content_length` (integer, optional): cap fetched text (same as `fetch`, max 1 MiB)
-- `max_input_tokens` (integer, optional): forwarded to the sidecar as `maxInputTokens`
+
+Fetched pages are normalized to plain text (same as `/fetch`); the extractor always receives that representation. Truncation and extractor limits follow server configuration, not extra request fields.
 
 **Responses**
 
@@ -402,4 +400,4 @@ curl -s -X POST "http://localhost:${SEARXNG_MCP_PORT:-7778}/extract" \
   -d '{"url":"https://example.com","json_schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}'
 ```
 
-`EXTRACT_MAX_LENGTH` (default 524288) applies **after** fetch and optional `max_content_length`; it is stricter than the fetch hard cap of 1 MiB unless overridden.
+`EXTRACT_MAX_LENGTH` (default 524288) applies **after** fetch; it is stricter than the fetch hard cap of 1 MiB unless overridden.

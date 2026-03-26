@@ -71,6 +71,9 @@ KIBIBYTE = 1024
 DEFAULT_EXTRACT_MAX_LENGTH = 512 * KIBIBYTE  # 512 KiB `content` cap
 DEFAULT_EXTRACT_MAX_JSON_BODY_BYTES = 512 * KIBIBYTE  # 512 KiB raw POST body cap
 
+# Aligns with SearXNGClient.fetch(): content is always HTML-stripped plain text, not Markdown or raw HTML.
+EXTRACT_SIDECAR_CONTENT_FORMAT = "txt"
+
 ERROR_EXTRACT_DISABLED = "Error: extract is disabled (set EXTRACT_ENABLED=true)"
 ERROR_EXTRACT_JSON_SCHEMA_REQUIRED = "Error: json_schema is required"
 ERROR_EXTRACT_JSON_SCHEMA_TYPE = "Error: json_schema must be an object"
@@ -391,24 +394,41 @@ def build_tool_definitions(extract_enabled: bool) -> List[Tool]:
             Tool(
                 name="extract",
                 description=(
-                    "Fetch a URL (same clean text as fetch), then run structured LLM extraction "
-                    "via the extractor sidecar using the provided JSON Schema subset"
+                    "Fetch a web page URL (same HTML-stripped text as fetch), then return one JSON "
+                    "object. You define the extraction task: required json_schema declares the output "
+                    "shape; optional prompt adds natural-language rules. Both are arbitrary—pick any "
+                    "fields, types, and instructions the task needs. Optional: headers for the fetch."
                 ),
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "url": {"type": "string", "description": "Page URL to fetch and extract from"},
-                        "json_schema": {"type": "object", "description": "JSON Schema (supported subset) for the desired output shape"},
-                        "prompt": {"type": "string", "description": "Optional extraction guidance"},
-                        "content_format": {
+                        "url": {
                             "type": "string",
-                            "description": 'Content format of fetched text: "txt", "markdown", or "html" (default: txt)',
-                            "enum": ["txt", "markdown", "html"],
+                            "description": "HTTP(S) URL of the page to fetch and extract from (required)",
                         },
-                        "extraction_context": {"type": "object", "description": "Opaque key-value context forwarded to the sidecar"},
-                        "headers": {"type": "object", "description": "Optional HTTP headers for the fetch step"},
-                        "max_content_length": {"type": "integer", "description": f"Max fetched content length before extract limits (default: no cap; max {MAX_FETCH_CONTENT_LIMIT})"},
-                        "max_input_tokens": {"type": "integer", "description": "Optional max input tokens passed to the sidecar extractor"},
+                        "json_schema": {
+                            "type": "object",
+                            "description": (
+                                "JSON Schema (supported subset) for the single JSON object to return. "
+                                "You choose property names, nesting, and types; the result will match "
+                                "this schema. Combine with prompt: schema fixes structure, prompt adds "
+                                "natural-language extraction rules when needed."
+                            ),
+                        },
+                        "prompt": {
+                            "type": "string",
+                            "description": (
+                                "Optional. Natural-language partner to json_schema: say what to extract "
+                                "from the page, how to interpret edge cases, priorities, or formatting—"
+                                "anything not captured by the schema alone. Omit when the schema fully "
+                                "specifies the task. There is no required wording; you (the caller) "
+                                "decide the task together with json_schema."
+                            ),
+                        },
+                        "headers": {
+                            "type": "object",
+                            "description": "Optional HTTP request headers for fetching the URL",
+                        },
                     },
                     "required": ["url", "json_schema"],
                 },
@@ -618,7 +638,7 @@ async def run_extract_pipeline(arguments: Dict[str, Any]) -> tuple[Dict[str, Any
         return {"error": ERROR_EXTRACT_JSON_SCHEMA_TYPE}, 400
 
     headers = arguments.get("headers")
-    max_content_length = arguments.get("max_content_length", DEFAULT_FETCH_CONTENT_LIMIT)
+    max_content_length = DEFAULT_FETCH_CONTENT_LIMIT
     if max_content_length is not None:
         max_content_length = min(int(max_content_length), MAX_FETCH_CONTENT_LIMIT)
 
@@ -639,24 +659,14 @@ async def run_extract_pipeline(arguments: Dict[str, Any]) -> tuple[Dict[str, Any
     if len(content) > EXTRACT_MAX_LENGTH:
         return {"error": ERROR_EXTRACT_CONTENT_TOO_LONG.format(limit=EXTRACT_MAX_LENGTH)}, 413
 
-    content_format = arguments.get("content_format") or "txt"
-    if content_format not in ("txt", "markdown", "html"):
-        return {
-            "error": 'Error: content_format must be one of: "txt", "markdown", "html"',
-        }, 400
-
     sidecar_body: Dict[str, Any] = {
         "content": content,
         "source_url": url,
         "json_schema": json_schema,
-        "content_format": content_format,
+        "content_format": EXTRACT_SIDECAR_CONTENT_FORMAT,
     }
     if arguments.get("prompt") is not None:
         sidecar_body["prompt"] = arguments.get("prompt")
-    if arguments.get("extraction_context") is not None:
-        sidecar_body["extraction_context"] = arguments.get("extraction_context")
-    if arguments.get("max_input_tokens") is not None:
-        sidecar_body["maxInputTokens"] = arguments.get("max_input_tokens")
 
     return await post_sidecar_extract(sidecar_body)
 
