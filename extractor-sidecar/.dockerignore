@@ -1,0 +1,7 @@
+node_modules
+dist
+*.test.ts
+.env
+.env.*
+vitest.config.ts
+eslint.config.*

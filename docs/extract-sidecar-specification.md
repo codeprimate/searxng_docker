@@ -46,13 +46,13 @@ Agents using the SearXNG suite can **search** and **fetch** web pages into naive
 | -------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | `EXTRACT_ENABLED`    | `searxng-mcp`             | Enable `extract` tool and HTTP `/extract`; use common truthy/falsy parsing (`1`, `true`, `yes` / `0`, `false`, `no`, unset)           | `false` (opt-in) |
 | `EXTRACT_TIMEOUT`    | `searxng-mcp`             | HTTP client timeout **(seconds)** for `POST` to the sidecar (entire request–response, including sidecar’s OpenRouter work)            | `120`            |
-| `EXTRACT_MAX_LENGTH` | `searxng-mcp` and sidecar | Maximum length of the `content` string (Unicode code units / Python `len`-style character count); reject with clear error if exceeded | `512000`         |
+| `EXTRACT_MAX_LENGTH` | `searxng-mcp` and sidecar | Maximum length of the `content` string (Unicode code units / Python `len`-style character count); reject with clear error if exceeded | `524288` (512 KiB) |
 
 
-- **Optional (v1+):** `EXTRACT_MAX_JSON_BODY_BYTES` — cap on raw POST body size (e.g. default `2097152` / 2 MiB) to bound `json_schema` + metadata + `content`; if unset, derive a conservative cap from `EXTRACT_MAX_LENGTH` + overhead in implementation docs.
+- **Optional (v1+):** `EXTRACT_MAX_JSON_BODY_BYTES` — cap on raw POST body size (e.g. default `524288` / 512 KiB) to bound `json_schema` + metadata + `content`; if unset, derive a conservative cap from `EXTRACT_MAX_LENGTH` + overhead in implementation docs.
 - **Sidecar → OpenRouter:** Sidecar should use a timeout **≥** the MCP→sidecar budget or an explicit separate env (e.g. `EXTRACT_OPENROUTER_TIMEOUT_MS`) so the sidecar fails predictably before the MCP client times out; document ordering in implementation.
 - **Optional `maxInputTokens`:** Passed through to extractor when supported; subordinate to `EXTRACT_MAX_LENGTH` (truncate or reject per implementation note).
-- **Note:** `EXTRACT_MAX_LENGTH` (512k) is intentionally **stricter** than `[server.py](../mcp-server/server.py)` `MAX_FETCH_CONTENT_LIMIT` (1 MiB); the MCP applies this limit **after** fetch and **before** the sidecar (truncate or reject—document in implementation), or raise the env override.
+- **Note:** `EXTRACT_MAX_LENGTH` (512 KiB by default) is intentionally **stricter** than `[server.py](../mcp-server/server.py)` `MAX_FETCH_CONTENT_LIMIT` (1 MiB); the MCP applies this limit **after** fetch and **before** the sidecar (truncate or reject—document in implementation), or raise the env override.
 - **Compatibility:** v1 commits to **JSON Schema subset → Zod** (stakeholder decision); unsupported schema features **rejected with HTTP 400** and a clear error message from the sidecar.
 
 ### Caching (LLM result cache)
@@ -214,7 +214,7 @@ The sidecar **must** document and enforce a **supported subset** of JSON Schema 
 - Unsupported `json_schema` returns **400** with a clear message from the sidecar; MCP surfaces it without crashing.
 - Sidecar/OpenRouter failure returns a **non-success** response; MCP does not leak OpenRouter secrets.
 - `EXTRACT_ENABLED` defaults off; when on, `extract` appears in `list_tools` and works end-to-end; when off, tool is absent and calls fail clearly.
-- `EXTRACT_TIMEOUT` and `EXTRACT_MAX_LENGTH` are read from the environment with defaults `120` and `512000`; behavior is verified when unset.
+- `EXTRACT_TIMEOUT` and `EXTRACT_MAX_LENGTH` are read from the environment with defaults `120` and `524288`; behavior is verified when unset.
 - Payload size limits are enforced (`EXTRACT_MAX_LENGTH` and optional total-body cap); documented relationship to fetch’s 1 MiB cap (extract stricter unless env overridden).
 
 ---

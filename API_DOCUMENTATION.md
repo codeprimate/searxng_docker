@@ -356,3 +356,50 @@ curl -v "http://localhost:7777/search?q=test&format=json"
 # Include response headers
 curl -i "http://localhost:7777/search?q=test&format=json"
 ```
+
+---
+
+## MCP HTTP API (searxng-mcp)
+
+The `searxng-mcp` container exposes a small REST API on `${SEARXNG_MCP_PORT}` (default **7778**). It is separate from SearXNG’s port **7777**.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Liveness |
+| `/tools` | GET | Tool list (JSON), same contract as MCP `list_tools` |
+| `/search` | POST | Same behavior as the `search` tool |
+| `/fetch` | POST | Same behavior as the `fetch` tool |
+| `/crawl` | POST | Same behavior as the `crawl` tool |
+| `/extract` | POST | Same behavior as the `extract` tool (when enabled) |
+
+### `POST /extract` (when `EXTRACT_ENABLED=true`)
+
+**Request body** (JSON object), aligned with the MCP `extract` tool:
+
+- `url` (string, required): page to fetch
+- `json_schema` (object, required): JSON Schema (supported subset; see `docs/extract-sidecar-specification.md`)
+- `prompt` (string, optional)
+- `content_format` (string, optional): `txt` \| `markdown` \| `html` (default `txt`)
+- `extraction_context` (object, optional)
+- `headers` (object, optional): headers for the **fetch** step
+- `max_content_length` (integer, optional): cap fetched text (same as `fetch`, max 1 MiB)
+- `max_input_tokens` (integer, optional): forwarded to the sidecar as `maxInputTokens`
+
+**Responses**
+
+- **404** `{ "error": "extract disabled", "code": "EXTRACT_DISABLED" }` when extract is disabled
+- **413** when the JSON body exceeds `EXTRACT_MAX_JSON_BODY_BYTES` or when fetched content exceeds `EXTRACT_MAX_LENGTH` after the fetch step
+- **400** for invalid JSON, invalid arguments, or empty/whitespace-only content
+- **200** with a `stage: "fetch"` field when the origin fetch failed (same spirit as `/fetch` returning an `error` field)
+- **200** with `{ data, processedContent, usage?, cached }` on success when the sidecar returns 200
+- **502** when the sidecar is unreachable or returns a bad gateway response (connection errors, invalid gateway response)
+
+**Example**
+
+```bash
+curl -s -X POST "http://localhost:${SEARXNG_MCP_PORT:-7778}/extract" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com","json_schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}'
+```
+
+`EXTRACT_MAX_LENGTH` (default 524288) applies **after** fetch and optional `max_content_length`; it is stricter than the fetch hard cap of 1 MiB unless overridden.

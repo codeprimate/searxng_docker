@@ -22,7 +22,7 @@ The following choices are **locked** for v1. Do not revisit without updating thi
 | Object strictness | For `type: "object"`, treat as **strict**: no extra keys in data—Zod **`.strict()`**; reject schemas with **`additionalProperties: true`**; if **`additionalProperties` is omitted**, treat as **`false`** (strict object). |
 | Schema→Zod implementation | **Hand-rolled** recursive builder for the supported subset only (no full Draft-2020-12 library unless it can be constrained to this subset). |
 | `EXTRACT_MAX_LENGTH` handling | **Reject** (do not truncate for v1): if `content` length exceeds the limit after normalization, return **413** with a clear message (spec: reject with clear error). |
-| Raw POST body size (MCP and sidecar) | Default **`EXTRACT_MAX_JSON_BODY_BYTES=2097152`** (2 MiB); reject with **413** if exceeded before JSON parse. |
+| Raw POST body size (MCP and sidecar) | Default **`EXTRACT_MAX_JSON_BODY_BYTES=524288`** (512 KiB); reject with **413** if exceeded before JSON parse. |
 | Oversize / limits HTTP codes | **413** for any over-limit payload: raw body over **`EXTRACT_MAX_JSON_BODY_BYTES`**, or **`content`** over **`EXTRACT_MAX_LENGTH`**. **400** for invalid JSON, invalid arguments, empty/whitespace-only content, schema conversion failure, unsupported schema keywords. |
 | Sidecar→OpenRouter timeout | **`EXTRACT_OPENROUTER_TIMEOUT_MS` default `115000`** (115s) so OpenRouter fails before MCP **`EXTRACT_TIMEOUT`** (120s) elapses on the same request (spec: predictable ordering). |
 | Cache hit response | Include **`cached: true`**; **omit `usage`** on cache hits (or set numeric token fields to **0**—pick **omit `usage`** on hits for clarity). |
@@ -86,7 +86,7 @@ Work proceeds in five phases so each milestone is testable on its own:
       - Add `extractor-sidecar/.env.example` listing sidecar variables (OpenRouter, `EXTRACT_MAX_LENGTH`, optional `REDIS_URL`, etc.) so local and Compose stay aligned.
       - Dockerfile: multi-stage build; expose port **3000**; non-root user when practical.
     - **Configuration**:
-      - Centralize defaults per **Implementation decisions**: `EXTRACT_MAX_LENGTH` `512000`, OpenRouter base URL `https://openrouter.ai/api/v1`, `EXTRACT_OPENROUTER_TIMEOUT_MS` **115000**, `EXTRACT_MAX_JSON_BODY_BYTES` **2097152**.
+      - Centralize defaults per **Implementation decisions**: `EXTRACT_MAX_LENGTH` `524288`, OpenRouter base URL `https://openrouter.ai/api/v1`, `EXTRACT_OPENROUTER_TIMEOUT_MS` **115000**, `EXTRACT_MAX_JSON_BODY_BYTES` **524288**.
     - **Testing Strategy**:
       - **Code Quality**: `npm run lint` / `tsc --noEmit`; formatter as project standard.
       - **Manual**: `curl` to `/health` locally and in container.
@@ -131,7 +131,7 @@ Work proceeds in five phases so each milestone is testable on its own:
 
 - [ ] 1.4.1 **Wire LangChain `ChatOpenAI` to OpenRouter and call `extract()`** - 📋 Planned
   - *Hint*: `@lightfeed/extractor` README for `ContentFormat`, `extract()`, optional `maxInputTokens`.
-  - *Consider*: Enforce `EXTRACT_MAX_LENGTH` on `content` before LLM (**reject** if over limit); reject empty/whitespace-only body; raw body cap **`EXTRACT_MAX_JSON_BODY_BYTES`** default **2097152**.
+  - *Consider*: Enforce `EXTRACT_MAX_LENGTH` on `content` before LLM (**reject** if over limit); reject empty/whitespace-only body; raw body cap **`EXTRACT_MAX_JSON_BODY_BYTES`** default **524288**.
   - *Files*: sidecar route handler, LLM factory module
   - *Risk*: Invalid JSON from model—document reliance on extractor mitigations; map sidecar errors to structured responses.
   - **IMPLEMENTATION PLAN**:
@@ -224,7 +224,7 @@ Work proceeds in five phases so each milestone is testable on its own:
 
 - [ ] 3.1.1 **Add env constants and parsers for extract-related variables** - 📋 Planned
   - *Hint*: Reuse a single helper for truthy/falsy (`1`, `true`, `yes` / `0`, `false`, `no`, unset).
-  - *Consider*: Defaults: `EXTRACT_ENABLED=false`, `EXTRACT_TIMEOUT=120`, `EXTRACT_MAX_LENGTH=512000`, `EXTRACTOR_SIDECAR_URL` required when enabled (fail at tool call with clear message if missing).
+  - *Consider*: Defaults: `EXTRACT_ENABLED=false`, `EXTRACT_TIMEOUT=120`, `EXTRACT_MAX_LENGTH=524288`, `EXTRACTOR_SIDECAR_URL` required when enabled (fail at tool call with clear message if missing).
   - *Files*: `mcp-server/server.py` (keep extract config and helpers in this file unless a separate module materially reduces size)
   - *Risk*: Accidentally using `DEFAULT_TIMEOUT` (5s) for sidecar—spec forbids; use `EXTRACT_TIMEOUT` only.
   - **IMPLEMENTATION PLAN**:

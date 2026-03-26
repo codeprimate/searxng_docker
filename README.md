@@ -42,10 +42,11 @@ The included Python query script (`searxng_search.py`) demonstrates how to use t
 - **Privacy-First**: All searches go through your private SearXNG instance
 - **Multiple Interfaces**: Both MCP protocol and REST API endpoints
 
-The MCP server runs as a separate container and provides three powerful tools:
+The MCP server runs as a separate container and provides these tools:
 - **Search**: Metasearch across multiple engines with category filtering
 - **Fetch**: Retrieve and clean web content from any URL
 - **Crawl**: Explore websites and extract content from related pages
+- **Extract** (optional): Fetch a URL, then run structured LLM extraction via the **extractor-sidecar** (OpenRouter + Redis cache). Enable with `EXTRACT_ENABLED=true` and configure `OPENROUTER_API_KEY` for the sidecar. See `docs/extract-sidecar-specification.md`.
 
 This makes it easy to give AI assistants access to current, real-time information while maintaining complete privacy and control over your search data.
 
@@ -57,6 +58,7 @@ Simply clone this repository, configure a few environment variables, and you'll 
 - **Redis**: Caching for faster searches  
 - **Query Script**: Python tool for programmatic searches
 - **MCP Server**: Model Context Protocol server for AI integration
+- **Extractor sidecar** (optional): Node service for LLM-backed structured extraction (`extractor-sidecar/`)
 
 ## Quick Setup
 

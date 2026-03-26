@@ -13,6 +13,21 @@ Make sure to set the following environment variables:
 SEARXNG_PROTOCOL=${SEARXNG_PROTOCOL}
 SEARXNG_HOST=searxng
 SEARXNG_PORT=${SEARXNG_PORT}
+
+# Optional: extract tool (requires extractor-sidecar + OpenRouter on sidecar)
+# EXTRACT_ENABLED=false
+# EXTRACTOR_SIDECAR_URL=http://extractor-sidecar:3000
+# EXTRACT_TIMEOUT=120
+# EXTRACT_MAX_LENGTH=524288
+# EXTRACT_MAX_JSON_BODY_BYTES=524288
+```
+
+When `EXTRACT_ENABLED` is true, the MCP advertises an `extract` tool and `POST /extract` on the HTTP server. The MCP **fetches** the URL (same path as `fetch`), then **POSTs** JSON to the sidecar at `{EXTRACTOR_SIDECAR_URL}/extract`. OpenRouter credentials and Zod live only on the sidecar.
+
+Run tests (from `mcp-server/`):
+
+```bash
+./run_tests.sh
 ```
 
 ## Configuration
@@ -84,6 +99,16 @@ curl -X POST http://localhost:${SEARXNG_MCP_PORT}/crawl \
 - `headers` (optional): Custom headers as key-value pairs
 - `subpage_limit` (optional): Maximum number of subpages to crawl (default: 10, max: 20)
 - `max_content_length` (optional): Maximum content length per page in characters (default: no limit, max: 1MB)
+
+### Extract (optional)
+
+Requires `EXTRACT_ENABLED=true` and a running `extractor-sidecar` (`EXTRACTOR_SIDECAR_URL`, default `http://extractor-sidecar:3000` in Compose).
+
+```bash
+curl -X POST "http://localhost:${SEARXNG_MCP_PORT}/extract" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com","json_schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}'
+```
 
 ### Health Check
 ```bash
