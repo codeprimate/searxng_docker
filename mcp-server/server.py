@@ -12,6 +12,7 @@ import sys
 from aiohttp import web
 from mcp.server.stdio import stdio_server
 
+from searxng_mcp import __version__
 from searxng_mcp.mcp.app import app
 
 # Re-exports for tests and backward compatibility
@@ -20,6 +21,9 @@ from searxng_mcp.mcp.tools import build_tool_definitions, tools_to_json_list  # 
 
 
 async def main() -> None:
+    # stderr only: stdout is the MCP JSON-RPC transport in stdio mode.
+    print(f"searxng-mcp {__version__} starting", file=sys.stderr)
+
     if len(sys.argv) > 1 and sys.argv[1] == "--web":
         from searxng_mcp.http.routes import create_web_app
 
