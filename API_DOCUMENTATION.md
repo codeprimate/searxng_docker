@@ -389,7 +389,7 @@ Fetched pages are normalized to plain text (same as `/fetch`); the extractor alw
 - **413** when the JSON body exceeds `EXTRACT_MAX_JSON_BODY_BYTES` or when fetched content exceeds `EXTRACT_MAX_LENGTH` after the fetch step
 - **400** for invalid JSON, invalid arguments, or empty/whitespace-only content
 - **200** with a `stage: "fetch"` field when the origin fetch failed (same spirit as `/fetch` returning an `error` field)
-- **200** with `{ data, processedContent, usage?, cached }` on success when the sidecar returns 200
+- **200** with `{ data, usage?, cached }` on success when the sidecar returns 200
 - **502** when the sidecar is unreachable or returns a bad gateway response (connection errors, invalid gateway response)
 
 **Example**

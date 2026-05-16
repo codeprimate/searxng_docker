@@ -27,7 +27,6 @@ export interface ExtractRequestBody {
 
 export interface ExtractSuccessJson {
   data: unknown;
-  processedContent: string;
   usage?: { inputTokens?: number; outputTokens?: number };
   cached: boolean;
 }
@@ -119,7 +118,6 @@ export async function runExtract(
   if (cached) {
     return {
       data: cached.data,
-      processedContent: cached.processedContent,
       cached: true,
     };
   }
@@ -155,7 +153,6 @@ export async function runExtract(
 
     const responseJson: ExtractSuccessJson = {
       data: result.data,
-      processedContent: result.processedContent,
       usage: {
         inputTokens: result.usage.inputTokens,
         outputTokens: result.usage.outputTokens,
@@ -163,12 +160,7 @@ export async function runExtract(
       cached: false,
     };
 
-    await cacheSet(
-      redis,
-      keyHash,
-      { data: result.data, processedContent: result.processedContent },
-      config.cacheTtlSeconds,
-    );
+    await cacheSet(redis, keyHash, { data: result.data }, config.cacheTtlSeconds);
 
     return responseJson;
   } catch (e) {

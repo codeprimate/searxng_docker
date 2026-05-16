@@ -5,7 +5,6 @@ import { REDIS_KEY_PREFIX } from "./config.js";
 
 export interface CachedExtractPayload {
   data: unknown;
-  processedContent: string;
 }
 
 let redisSingleton: Redis | null = null;

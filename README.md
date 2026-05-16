@@ -57,6 +57,7 @@ Simply clone this repository, configure a few environment variables, and you'll 
 - **SearXNG**: Main search application
 - **Redis**: Caching for faster searches  
 - **Query Script**: Python tool for programmatic searches
+- **Extract Script**: Python CLI for structured LLM extraction from a URL (`extract_url.py`)
 - **MCP Server**: Model Context Protocol server for AI integration
 - **Extractor sidecar** (optional): Node service for LLM-backed structured extraction (`extractor-sidecar/`)
 
@@ -147,6 +148,38 @@ python searxng_search.py "python" --output json
 ```
 
 See `QUERY_SCRIPT_README.md` for detailed usage.
+
+## Using the Extract Script
+
+`extract_url.py` calls the MCP server’s `POST /extract` endpoint: fetch a page, then return structured JSON from the extractor sidecar. Use it from the shell or scripts when you want fields like title, price, or summary without hand-writing JSON Schema.
+
+**Prerequisites:** MCP server running (`docker compose up -d`), `EXTRACT_ENABLED=true`, and a configured extractor sidecar (`OPENROUTER_API_KEY`). See [extractor-sidecar README](extractor-sidecar/README.md).
+
+```bash
+# Comma-separated field names (descriptions are auto-generated)
+python extract_url.py "https://example.com/article" --keys title,author,summary
+
+# Same fields with extraction instructions for the LLM
+python extract_url.py "https://example.com/article" \
+  --keys title,summary \
+  --prompt "Main article only; ignore navigation and related links"
+
+# Full control: JSON object maps field names to descriptions
+python extract_url.py "https://example.com/article" \
+  --json '{"title":"Page title","summary":"Two-sentence summary"}'
+```
+
+Output is the extracted `data` object as indented JSON on stdout.
+
+**Environment** (optional; defaults match local Compose):
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SEARXNG_MCP_HOST` | `localhost` | MCP server host |
+| `SEARXNG_MCP_PORT` | `7778` | MCP server port |
+| `EXTRACT_TIMEOUT` | `120` | Request timeout in seconds (`curl --max-time`) |
+
+Use `--keys` for quick one-off extractions. Use `--json` when field descriptions matter for the model. Pair either with `--prompt` for page-specific rules (what to ignore, caps, date formats). For the raw HTTP API and schema subset, see [API_DOCUMENTATION.md](API_DOCUMENTATION.md) and [docs/extract-sidecar-specification.md](docs/extract-sidecar-specification.md).
 
 ## MCP Server Setup and Usage
 
@@ -259,6 +292,14 @@ curl -X POST http://localhost:7778/fetch \
 curl -X POST http://localhost:7778/crawl \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com", "filters": ["documentation", "guide"], "subpage_limit": 5}'
+
+# Extract structured fields (requires EXTRACT_ENABLED=true)
+curl -X POST http://localhost:7778/extract \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com","json_schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}'
+
+# Or use the helper script (see "Using the Extract Script")
+python extract_url.py "https://example.com" --keys title,summary
 
 # Health check
 curl http://localhost:7778/health
