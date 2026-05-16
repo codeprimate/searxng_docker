@@ -122,6 +122,18 @@ function wrapNullable<T extends z.ZodTypeAny>(
   return z.union([schema, z.null()]);
 }
 
+/**
+ * OpenRouter structured outputs reject Zod `.optional()`.
+ * JSON Schema properties not listed in `required` are modeled as `T | null`
+ * (key still present in the output object).
+ */
+function objectPropertySchema(
+  child: z.ZodTypeAny,
+  isRequired: boolean,
+): z.ZodTypeAny {
+  return isRequired ? child : wrapNullable(child, true);
+}
+
 function buildObjectSchema(
   schema: Record<string, unknown>,
   ctx: string,
@@ -151,7 +163,7 @@ function buildObjectSchema(
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const key of Object.keys(propRec)) {
     const child = jsonSchemaToZodInner(propRec[key], `${ctx}.properties.${key}`);
-    shape[key] = required.has(key) ? child : child.optional();
+    shape[key] = objectPropertySchema(child, required.has(key));
   }
   let obj = z.object(shape).strict();
   const desc = schema.description;

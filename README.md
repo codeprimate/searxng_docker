@@ -175,6 +175,18 @@ docker compose ps searxng-mcp
 
 The MCP server will be available at `http://localhost:7778` (or your configured `SEARXNG_MCP_PORT`).
 
+### Cursor skill (recommended)
+
+Install the **[SearXNG agent skill](docs/searxng-skill/)** so Cursor knows how to use `search`, `fetch`, `crawl`, and **`extract`** (LLM-backed `json_schema` + `prompt`), when to prefer `extract` over `fetch`, and when to fall back to builtin web tools.
+
+```bash
+cp -r docs/searxng-skill ~/.cursor/skills/searxng-capabilities
+```
+
+See [docs/searxng-skill/reference.md](docs/searxng-skill/reference.md) for install paths and [SKILL.md](docs/searxng-skill/SKILL.md) for workflows. Reload Cursor after installing.
+
+Enable **`extract`** in Compose (`EXTRACT_ENABLED=true`, extractor-sidecar + `OPENROUTER_API_KEY`); see [extractor-sidecar README](extractor-sidecar/README.md).
+
 ### Cursor Integration
 
 To use the MCP server with Cursor, add this configuration to `~/.cursor/mcp.json`:
@@ -194,8 +206,9 @@ To use the MCP server with Cursor, add this configuration to `~/.cursor/mcp.json
       "description": "SearXNG metasearch engine that aggregates results from various search services",
       "capabilities": [
         "web_search",
-        "web_fetch", 
-        "web_crawl"
+        "web_fetch",
+        "web_crawl",
+        "web_extract"
       ]
     }
   }
@@ -253,13 +266,14 @@ curl http://localhost:7778/health
 
 ### Available Tools
 
-The MCP server provides three main tools:
+The MCP server provides these tools:
 
-1. **Search Tool**: Perform metasearch queries with optional category filtering
-2. **Fetch Tool**: Retrieve and clean content from any URL
-3. **Crawl Tool**: Explore websites and extract content from related pages
+1. **Search** — Metasearch with category, engine, and time filters
+2. **Fetch** — Full page text (HTML stripped) for reading or quoting
+3. **Crawl** — Seed URL plus subpages whose link anchor text matches `filters`
+4. **Extract** (optional) — LLM reads the page and returns JSON per your `json_schema` and `prompt`; enable via extractor-sidecar
 
-For detailed API documentation, see the [MCP Server README](mcp-server/README.md).
+For agent workflows, see [docs/searxng-skill/SKILL.md](docs/searxng-skill/SKILL.md). For API details, see the [MCP Server README](mcp-server/README.md) and [docs/searxng-skill/reference.md](docs/searxng-skill/reference.md).
 
 ## Troubleshooting
 

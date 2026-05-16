@@ -2,6 +2,8 @@
 
 Minimal MCP server for SearXNG search engine integration with Cursor and Claude.
 
+**Cursor agents:** See [`docs/searxng-skill/SKILL.md`](../docs/searxng-skill/SKILL.md) for how to use `search`, `fetch`, `crawl`, and `extract` together.
+
 ## Usage
 
 ## Environment Variables

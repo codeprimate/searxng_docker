@@ -119,14 +119,16 @@ Returns **HTML-stripped plain text**.
 
 ### `extract` (optional)
 
-Requires operator enablement and a sidecar (`EXTRACT_ENABLED`, `EXTRACTOR_SIDECAR_URL`).
+Requires operator enablement and a sidecar (`EXTRACT_ENABLED`, `EXTRACTOR_SIDECAR_URL`). MCP fetches the URL (same stripped text as `fetch`), then the sidecar LLM returns JSON validated against `json_schema`.
 
 | Argument | Required | Notes |
 |----------|----------|------|
 | `url` | Yes | Page to fetch |
-| `json_schema` | Yes | JSON Schema (supported subset) for output object |
-| `prompt` | No | Natural-language extraction / disambiguation |
+| `json_schema` | Yes | JSON Schema (**supported subset**—see sidecar); put keys in `required`; union with `"null"` if a field may be null |
+| `prompt` | No | Partner to schema: exclusions, caps, normalization, “main content only” |
 | `headers` | No | Fetch-step headers |
+
+Reasoning patterns (fetch vs extract, schema shapes, workflows): **[SKILL.md](SKILL.md)**.
 
 ### Extract HTTP example
 
@@ -177,13 +179,20 @@ Order-of-magnitude; verify in server code if precision matters.
 
 ---
 
-## Installing the Cursor skill
+## Installing in Cursor
 
-Copy the skill directory so **`SKILL.md` sits at the folder root**:
+Copy this directory so **`SKILL.md` is at the folder root**:
 
 | Scope | Path |
 |-------|------|
 | Project | `.cursor/skills/searxng-capabilities/` |
 | User | `~/.cursor/skills/searxng-capabilities/` |
 
-Restart Cursor or reload skills if changes do not apply.
+From this repo:
+
+```bash
+cp -r docs/searxng-skill ~/.cursor/skills/searxng-capabilities
+# or symlink: ln -s "$(pwd)/docs/searxng-skill" ~/.cursor/skills/searxng-capabilities
+```
+
+Restart Cursor or reload skills after installing.

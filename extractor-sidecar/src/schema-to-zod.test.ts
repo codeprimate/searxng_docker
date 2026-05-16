@@ -52,6 +52,27 @@ describe("jsonSchemaToZod", () => {
     expect(zod.parse({ title: null })).toEqual({ title: null });
   });
 
+  it("maps optional properties to null union (not Zod optional)", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        heading: { type: "string" },
+      },
+      required: ["title"],
+    };
+    const zod = jsonSchemaToZod(schema);
+    expect(zod.parse({ title: "Hello", heading: "World" })).toEqual({
+      title: "Hello",
+      heading: "World",
+    });
+    expect(zod.parse({ title: "Hello", heading: null })).toEqual({
+      title: "Hello",
+      heading: null,
+    });
+    expect(() => zod.parse({ title: "Hello" })).toThrow();
+  });
+
   it("rejects $ref", () => {
     expect(() =>
       jsonSchemaToZod({
