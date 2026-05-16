@@ -1,372 +1,211 @@
-# SearXNG Search Engine
+# SearXNG Docker Stack
 
-## What is SearXNG?
+Self-hosted [SearXNG](https://github.com/searxng/searxng) metasearch with Redis caching, a Python query CLI, an MCP server for AI tools, and optional LLM-backed structured extraction. Clone, configure `.env`, run `docker compose up -d`, then search in the browser, from scripts, or through Cursor/Claude.
 
-**SearXNG** is a free internet metasearch engine that aggregates results from more than 70 search services. It's designed to be privacy-respecting, meaning it doesn't track users or store personal data. Unlike traditional search engines, SearXNG:
+## Stack
 
-- **Protects Privacy**: No user tracking, no personal data collection
-- **Aggregates Results**: Combines results from multiple search engines (Google, Bing, DuckDuckGo, etc.)
-- **Open Source**: Fully transparent and community-driven
-- **Self-hostable**: Run your own search engine instance
-- **Customizable**: Configure which search engines to use and how results are displayed
+| Service | Port (default) | Role |
+|---------|----------------|------|
+| **searxng** | 7777 | Web UI and native JSON search API |
+| **redis** | internal | Result caching |
+| **searxng-mcp** | 7778 | MCP tools + REST (`/search`, `/fetch`, `/crawl`, `/extract`) |
+| **extractor-sidecar** | internal | LLM extraction for `/extract` (OpenRouter) |
 
-## What This Repository Provides
+## Quick start
 
-This repository contains a **ready-to-deploy SearXNG configuration** that makes it easy to run your own private search engine. Instead of manually configuring SearXNG, this setup provides:
+### Prerequisites
 
-- **Docker-based deployment** - Everything runs in containers for easy setup
-- **Redis caching** - Faster search results through intelligent caching
-- **Production-ready configuration** - Optimized settings for real-world use
-- **Query script** - Python tool for programmatic searches
-- **MCP Server** - Model Context Protocol server for AI integration with Cursor and Claude
-- **Comprehensive documentation** - Step-by-step setup and maintenance guides
-
-### API Integration
-
-**SearXNG includes a powerful REST API** that allows you to integrate search functionality directly into your applications. This means you can:
-
-- Build custom search interfaces
-- Integrate search into existing applications
-- Create automated search workflows
-- Develop search-powered tools and services
-
-The included Python query script (`searxng_search.py`) demonstrates how to use this API programmatically, making it easy to incorporate SearXNG's privacy-respecting search capabilities into your own projects.
-
-### MCP Server Integration
-
-**This repository includes a powerful MCP (Model Context Protocol) server** that enables seamless integration with AI development tools like Cursor and Claude. The MCP server provides:
-
-- **AI-Powered Search**: Direct search integration with AI assistants
-- **Web Content Fetching**: Retrieve and parse web content for AI analysis
-- **Intelligent Crawling**: Explore websites and extract relevant information
-- **Privacy-First**: All searches go through your private SearXNG instance
-- **Multiple Interfaces**: Both MCP protocol and REST API endpoints
-
-The MCP server runs as a separate container and provides these tools:
-- **Search**: Metasearch across multiple engines with category filtering
-- **Fetch**: Retrieve and clean web content from any URL
-- **Crawl**: Explore websites and extract content from related pages
-- **Extract** (optional): Fetch a URL, then run structured LLM extraction via the **extractor-sidecar** (OpenRouter + Redis cache). Enable with `EXTRACT_ENABLED=true` and configure `OPENROUTER_API_KEY` for the sidecar. See `docs/extract-sidecar-specification.md`.
-
-This makes it easy to give AI assistants access to current, real-time information while maintaining complete privacy and control over your search data.
-
-Simply clone this repository, configure a few environment variables, and you'll have your own private search engine with full API access and AI integration running in minutes.
-
-## What's Included
-
-- **SearXNG**: Main search application
-- **Redis**: Caching for faster searches  
-- **Query Script**: Python tool for programmatic searches
-- **Extract Script**: Python CLI for structured LLM extraction from a URL (`extract_url.py`)
-- **MCP Server**: Model Context Protocol server for AI integration
-- **Extractor sidecar** (optional): Node service for LLM-backed structured extraction (`extractor-sidecar/`)
-
-## Quick Setup
-
-### 1. Prerequisites
 - Docker and Docker Compose
-- Domain name (for production) or use localhost
+- For **extract**: an [OpenRouter](https://openrouter.ai/) API key in `.env`
 
-### 2. Configure Environment
+### Configure and run
+
 ```bash
-# Copy environment template
 cp env.example .env
-
-# Edit with your values
-nano .env
+# Edit .env: set SEARXNG_SECRET_KEY (see below) and OPENROUTER_API_KEY if using extract
+openssl rand -hex 32   # paste into SEARXNG_SECRET_KEY
+docker compose up -d
 ```
 
-Required settings in `.env`:
+Minimum `.env` values:
+
 ```env
 SEARXNG_PROTOCOL=http
 SEARXNG_HOST=localhost
 SEARXNG_PORT=7777
 SEARXNG_BASE_URL=${SEARXNG_PROTOCOL}://${SEARXNG_HOST}:${SEARXNG_PORT}/
-SEARXNG_SECRET_KEY=your-secret-key-here
+SEARXNG_SECRET_KEY=<from openssl rand -hex 32>
+SEARXNG_MCP_PORT=7778
 ```
 
-### 3. Generate Secret Key
-```bash
-# Generate secure key
-openssl rand -hex 32
-```
-Copy the output to `SEARXNG_SECRET_KEY` in your `.env` file.
+For structured extraction, keep `EXTRACT_ENABLED=true` (default in `env.example`) and set:
 
-### 4. Start Services
-```bash
-# Start all services
-docker compose up -d
+```env
+OPENROUTER_API_KEY=sk-or-...
 ```
 
-### 5. Access Search Engine
-- **Local**: http://localhost:7777 (or your configured SEARXNG_PORT)
-- **Production**: https://your-domain.com
+To disable the extract tool (search/fetch/crawl only), set `EXTRACT_ENABLED=false` in `.env`.
 
-## Running as a Service
+### Verify
 
-### Auto-restart
-Services automatically restart on failure (`restart: unless-stopped`)
-
-### Data Persistence
-- Redis data persists in Docker volume
-- SearXNG configuration persists in `./searxng/` directory
-
-### Monitoring
 ```bash
-# Check service health
 docker compose ps
-
-# View recent logs
-docker compose logs --tail=50
-
-# Monitor resource usage
-docker stats
+curl -sf "http://localhost:7777/search?q=test&format=json" | head -c 200
+curl -sf http://localhost:7778/health
 ```
 
-### Updates
-```bash
-# Pull latest images
-docker compose pull
+- **Search UI:** http://localhost:7777 (or your `SEARXNG_PORT`)
+- **MCP HTTP:** http://localhost:7778
 
-# Restart with new images
-docker compose up -d
+## Usage
+
+Pick the interface that fits your workflow. All paths use the same private SearXNG instance.
+
+### Web UI
+
+Open the search URL in a browser. No extra setup beyond Quick start.
+
+### SearXNG search API
+
+Direct JSON search against SearXNG (no MCP):
+
+```bash
+curl "http://localhost:7777/search?q=python+docker&format=json"
+curl "http://localhost:7777/search?q=docker&categories=general,it&format=json"
 ```
 
-## Using the Query Script
+Response fields, engines, and error handling: [API_DOCUMENTATION.md](API_DOCUMENTATION.md).
 
-Search programmatically with the included Python script:
+### Python: `searxng_search.py`
+
+Command-line wrapper around the SearXNG API (stdlib only):
 
 ```bash
-# Basic search
 python searxng_search.py "your search term"
-
-# Search specific categories
 python searxng_search.py "docker" --categories general,it
-
-# Get JSON output
 python searxng_search.py "python" --output json
 ```
 
-See `QUERY_SCRIPT_README.md` for detailed usage.
+More flags and examples: [QUERY_SCRIPT_README.md](QUERY_SCRIPT_README.md).
 
-## Using the Extract Script
+### MCP server: tools and when to use them
 
-`extract_url.py` calls the MCP server’s `POST /extract` endpoint: fetch a page, then return structured JSON from the extractor sidecar. Use it from the shell or scripts when you want fields like title, price, or summary without hand-writing JSON Schema.
+The MCP server (`searxng-mcp`) exposes four capabilities. In agents, **`fetch`** returns full page text; **`extract`** fetches then returns JSON shaped by your schema and prompt—prefer **extract** on noisy pages when you want fields, not raw HTML.
 
-**Prerequisites:** MCP server running (`docker compose up -d`), `EXTRACT_ENABLED=true`, and a configured extractor sidecar (`OPENROUTER_API_KEY`). See [extractor-sidecar README](extractor-sidecar/README.md).
+| Tool | Use for |
+|------|---------|
+| **search** | Metasearch; categories, engines, time filters |
+| **fetch** | Full cleaned page text to read or quote |
+| **crawl** | Seed URL plus subpages whose link text matches filters |
+| **extract** | Structured fields via LLM (`json_schema` + `prompt`); needs sidecar + API key |
+
+**REST examples** (same host/port as health check):
 
 ```bash
-# Comma-separated field names (descriptions are auto-generated)
+# Search
+curl -sS -X POST http://localhost:7778/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "python programming", "categories": "general,it"}'
+
+# Fetch page text
+curl -sS -X POST http://localhost:7778/fetch \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com"}'
+
+# Crawl related pages
+curl -sS -X POST http://localhost:7778/crawl \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com", "filters": ["documentation"], "subpage_limit": 5}'
+
+# Extract structured JSON (EXTRACT_ENABLED=true, OPENROUTER_API_KEY set)
+curl -sS -X POST http://localhost:7778/extract \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com","json_schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}'
+```
+
+### Python: `extract_url.py`
+
+CLI for `/extract` without hand-writing JSON Schema:
+
+```bash
 python extract_url.py "https://example.com/article" --keys title,author,summary
 
-# Same fields with extraction instructions for the LLM
 python extract_url.py "https://example.com/article" \
   --keys title,summary \
   --prompt "Main article only; ignore navigation and related links"
 
-# Full control: JSON object maps field names to descriptions
 python extract_url.py "https://example.com/article" \
   --json '{"title":"Page title","summary":"Two-sentence summary"}'
 ```
 
-Output is the extracted `data` object as indented JSON on stdout.
+Stdout is the extracted `data` object (indented JSON). Optional env: `SEARXNG_MCP_HOST`, `SEARXNG_MCP_PORT` (default `localhost:7778`), `EXTRACT_TIMEOUT` (default `120`).
 
-**Environment** (optional; defaults match local Compose):
+### Cursor and Claude
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `SEARXNG_MCP_HOST` | `localhost` | MCP server host |
-| `SEARXNG_MCP_PORT` | `7778` | MCP server port |
-| `EXTRACT_TIMEOUT` | `120` | Request timeout in seconds (`curl --max-time`) |
+**1. Point the client at the MCP container** (`~/.cursor/mcp.json` or Claude Desktop config):
 
-Use `--keys` for quick one-off extractions. Use `--json` when field descriptions matter for the model. Pair either with `--prompt` for page-specific rules (what to ignore, caps, date formats). For the raw HTTP API and schema subset, see [API_DOCUMENTATION.md](API_DOCUMENTATION.md) and [docs/extract-sidecar-specification.md](docs/extract-sidecar-specification.md).
-
-## MCP Server Setup and Usage
-
-The MCP server provides AI integration capabilities for Cursor and Claude, enabling them to perform web searches and fetch content through your private SearXNG instance.
-
-### Environment Configuration
-
-The MCP server uses the same environment variables as the main setup, with one additional variable:
-
-```env
-# Add to your .env file
-SEARXNG_MCP_PORT=7778
+```json
+{
+  "mcpServers": {
+    "searxng": {
+      "command": "docker",
+      "args": ["exec", "-i", "searxng-mcp", "python", "server.py"],
+      "description": "Private SearXNG: search, fetch, crawl, extract"
+    }
+  }
+}
 ```
 
-### Starting the MCP Server
+Claude Desktop paths: macOS `~/Library/Application Support/Claude/claude_desktop_config.json`, Windows `%APPDATA%\Claude\claude_desktop_config.json`. Restart the app after editing.
 
-The MCP server starts automatically with the main services:
-
-```bash
-# Start all services including MCP server
-docker compose up -d
-
-# Check MCP server status
-docker compose ps searxng-mcp
-```
-
-The MCP server will be available at `http://localhost:7778` (or your configured `SEARXNG_MCP_PORT`).
-
-### Cursor skill (recommended)
-
-Install the **[SearXNG agent skill](docs/searxng-skill/)** so Cursor knows how to use `search`, `fetch`, `crawl`, and **`extract`** (LLM-backed `json_schema` + `prompt`), when to prefer `extract` over `fetch`, and when to fall back to builtin web tools.
+**2. Install the agent skill (Cursor, recommended)** so the model knows when to use `extract` vs `fetch` and how to design schemas:
 
 ```bash
 cp -r docs/searxng-skill ~/.cursor/skills/searxng-capabilities
 ```
 
-See [docs/searxng-skill/reference.md](docs/searxng-skill/reference.md) for install paths and [SKILL.md](docs/searxng-skill/SKILL.md) for workflows. Reload Cursor after installing.
+Reload Cursor. Workflows: [docs/searxng-skill/SKILL.md](docs/searxng-skill/SKILL.md).
 
-Enable **`extract`** in Compose (`EXTRACT_ENABLED=true`, extractor-sidecar + `OPENROUTER_API_KEY`); see [extractor-sidecar README](extractor-sidecar/README.md).
+MCP implementation details: [mcp-server/README.md](mcp-server/README.md). Extract pipeline: [extractor-sidecar/README.md](extractor-sidecar/README.md), [docs/extract-sidecar-specification.md](docs/extract-sidecar-specification.md).
 
-### Cursor Integration
+## Operations
 
-To use the MCP server with Cursor, add this configuration to `~/.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "searxng": {
-      "command": "docker",
-      "args": [
-        "exec",
-        "-i",
-        "searxng-mcp",
-        "python",
-        "server.py"
-      ],
-      "description": "SearXNG metasearch engine that aggregates results from various search services",
-      "capabilities": [
-        "web_search",
-        "web_fetch",
-        "web_crawl",
-        "web_extract"
-      ]
-    }
-  }
-}
-```
-
-### Claude Desktop Integration
-
-For Claude Desktop, add this configuration to your Claude Desktop settings:
-
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "searxng": {
-      "command": "docker",
-      "args": [
-        "exec",
-        "-i",
-        "searxng-mcp",
-        "python",
-        "server.py"
-      ],
-      "description": "SearXNG metasearch engine that aggregates results from various search services"
-    }
-  }
-}
-```
-
-### Web API Usage
-
-You can also use the MCP server's REST API directly:
+Services use `restart: unless-stopped`. Redis data lives in a Docker volume; SearXNG config in `./searxng/`.
 
 ```bash
-# Search
-curl -X POST http://localhost:7778/search \
-  -H "Content-Type: application/json" \
-  -d '{"query": "python programming", "categories": "general,it"}'
-
-# Fetch content
-curl -X POST http://localhost:7778/fetch \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com"}'
-
-# Crawl website
-curl -X POST http://localhost:7778/crawl \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com", "filters": ["documentation", "guide"], "subpage_limit": 5}'
-
-# Extract structured fields (requires EXTRACT_ENABLED=true)
-curl -X POST http://localhost:7778/extract \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com","json_schema":{"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}}'
-
-# Or use the helper script (see "Using the Extract Script")
-python extract_url.py "https://example.com" --keys title,summary
-
-# Health check
-curl http://localhost:7778/health
+docker compose ps
+docker compose logs --tail=50
+docker compose pull && docker compose up -d   # update images
 ```
 
-### Available Tools
-
-The MCP server provides these tools:
-
-1. **Search** — Metasearch with category, engine, and time filters
-2. **Fetch** — Full page text (HTML stripped) for reading or quoting
-3. **Crawl** — Seed URL plus subpages whose link anchor text matches `filters`
-4. **Extract** (optional) — LLM reads the page and returns JSON per your `json_schema` and `prompt`; enable via extractor-sidecar
-
-For agent workflows, see [docs/searxng-skill/SKILL.md](docs/searxng-skill/SKILL.md). For API details, see the [MCP Server README](mcp-server/README.md) and [docs/searxng-skill/reference.md](docs/searxng-skill/reference.md).
+Logs rotate at 1MB per container. Tune engines in `searxng/settings.yml` if needed.
 
 ## Troubleshooting
 
-### Services Won't Start
-```bash
-# Check logs
-docker compose logs
+| Symptom | Check |
+|---------|--------|
+| Services won't start | `docker compose logs` then `docker compose down && docker compose up -d` |
+| Can't reach search UI | `docker compose ps`, `SEARXNG_PORT`, firewall |
+| MCP connection refused | `docker compose ps searxng-mcp`, `SEARXNG_MCP_PORT` conflicts |
+| Extract fails | `OPENROUTER_API_KEY`, `EXTRACT_ENABLED=true`, `docker compose ps extractor-sidecar` |
+| AI client ignores MCP | Restart Cursor/Claude after config change |
 
-# Restart everything
-docker compose down && docker compose up -d
+Full reset (removes volumes):
+
+```bash
+docker compose down -v && docker compose up -d
 ```
 
-### Can't Access Search
-- Verify your configured port (SEARXNG_PORT) is open
-- Check environment variables match your setup
-- Ensure services are running: `docker compose ps`
+## Documentation
 
-### MCP Server Issues
-- **MCP server not responding**: Check if container is running: `docker compose ps searxng-mcp`
-- **Connection refused**: Verify `SEARXNG_MCP_PORT` is not conflicting with other services
-- **AI integration not working**: Restart Cursor/Claude after adding MCP configuration
-- **Search failures**: Ensure SearXNG container is healthy: `docker compose ps searxng`
-
-### Reset Everything
-```bash
-# Stop and remove all data
-docker compose down -v
-
-# Start fresh
-docker compose up -d
-```
-
-## Maintenance
-
-### Regular Tasks
-- Update Docker images monthly
-- Monitor disk space for Redis data
-- Check logs for errors
-
-### Log Management
-Logs are automatically rotated (1MB max, 1 file kept)
-
-### Performance
-- Adjust search engines in `searxng/settings.yml` if needed
+| Doc | Contents |
+|-----|----------|
+| [API_DOCUMENTATION.md](API_DOCUMENTATION.md) | Native SearXNG API schema and curl |
+| [QUERY_SCRIPT_README.md](QUERY_SCRIPT_README.md) | `searxng_search.py` options |
+| [mcp-server/README.md](mcp-server/README.md) | MCP server design and endpoints |
+| [extractor-sidecar/README.md](extractor-sidecar/README.md) | Sidecar env and caching |
+| [docs/searxng-skill/](docs/searxng-skill/) | Agent workflows for search/fetch/crawl/extract |
 
 ## Acknowledgments
 
-This is just an easy configuration to run SearXNG with AI integration capabilities. Special thanks to:
-
-- **[SearXNG](https://github.com/searxng/searxng)** - The privacy-respecting metasearch engine that powers this setup
-- **[Docker](https://www.docker.com/)** - For containerization and easy deployment
-- **[Redis](https://redis.io/)** - For caching and performance optimization
-- **[Model Context Protocol](https://modelcontextprotocol.io/)** - For enabling AI integration with development tools
-
-This configuration simplifies the deployment of SearXNG while maintaining its core privacy-focused features and adding powerful AI integration capabilities through the MCP server.
+Built on [SearXNG](https://github.com/searxng/searxng), [Docker](https://www.docker.com/), [Redis](https://redis.io/), and the [Model Context Protocol](https://modelcontextprotocol.io/).
