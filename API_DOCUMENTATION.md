@@ -361,16 +361,40 @@ curl -i "http://localhost:7777/search?q=test&format=json"
 
 ## MCP HTTP API (searxng-mcp)
 
-The `searxng-mcp` container exposes a small REST API on `${SEARXNG_MCP_PORT}` (default **7778**). It is separate from SearXNG’s port **7777**.
+The `searxng-mcp` container listens on `${SEARXNG_MCP_PORT}` (default **7778**), separate from SearXNG’s port **7777**. It exposes two surfaces:
+
+1. **Streamable HTTP MCP** at `/mcp` (default) — official MCP JSON-RPC for Cursor, Claude, and other MCP clients (`url` transport).
+2. **REST mirror** — convenience endpoints with the same semantics as MCP tools (for `curl`, `extract_url.py`, scripts).
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+| `/mcp` | GET, POST, DELETE | Streamable HTTP MCP (when `MCP_STREAMABLE_ENABLED=true`) |
 | `/health` | GET | Liveness |
 | `/tools` | GET | Tool list (JSON), same contract as MCP `list_tools` |
 | `/search` | POST | Same behavior as the `search` tool |
 | `/fetch` | POST | Same behavior as the `fetch` tool |
 | `/crawl` | POST | Same behavior as the `crawl` tool |
 | `/extract` | POST | Same behavior as the `extract` tool (when enabled) |
+
+### Streamable HTTP MCP (`/mcp`)
+
+Stateless mode by default (`MCP_STATELESS_HTTP=true`): each request runs a full MCP session; no `Mcp-Session-Id` stickiness is required.
+
+Clients must send `Accept: application/json` when `MCP_JSON_RESPONSE=true` (default). Use the MCP SDK or a client that speaks [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http).
+
+**Cursor example** (`~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "searxng": {
+      "url": "http://localhost:7778/mcp"
+    }
+  }
+}
+```
+
+**Environment:** `MCP_STREAMABLE_PATH` (default `/mcp`), `MCP_STREAMABLE_ENABLED`, `MCP_STATELESS_HTTP`, `MCP_JSON_RESPONSE`.
 
 ### `POST /extract` (when `EXTRACT_ENABLED=true`)
 

@@ -8,7 +8,7 @@ Self-hosted [SearXNG](https://github.com/searxng/searxng) metasearch with Redis 
 |---------|----------------|------|
 | **searxng** | 7777 | Web UI and native JSON search API |
 | **redis** | internal | Result caching |
-| **searxng-mcp** | 7778 | MCP tools + REST (`/search`, `/fetch`, `/crawl`, `/extract`) |
+| **searxng-mcp** | 7778 | Streamable MCP (`/mcp`) + REST mirror (`/search`, `/fetch`, …) |
 | **extractor-sidecar** | internal | LLM extraction for `/extract` (OpenRouter) |
 
 ## Quick start
@@ -55,7 +55,8 @@ curl -sf http://localhost:7778/health
 ```
 
 - **Search UI:** http://localhost:7777 (or your `SEARXNG_PORT`)
-- **MCP HTTP:** http://localhost:7778
+- **MCP (streamable HTTP):** http://localhost:7778/mcp
+- **REST mirror:** http://localhost:7778
 
 ## Usage
 
@@ -142,7 +143,22 @@ Stdout is the extracted `data` object (indented JSON). Optional env: `SEARXNG_MC
 
 ### Cursor and Claude
 
-**1. Point the client at the MCP container** (`~/.cursor/mcp.json` or Claude Desktop config):
+**1. Point the client at the MCP server** (`~/.cursor/mcp.json` or Claude Desktop config).
+
+**Streamable HTTP (recommended when the container port is reachable):**
+
+```json
+{
+  "mcpServers": {
+    "searxng": {
+      "url": "http://localhost:7778/mcp",
+      "description": "Private SearXNG: search, fetch, crawl, extract"
+    }
+  }
+}
+```
+
+**stdio via Docker exec (no published port required):**
 
 ```json
 {

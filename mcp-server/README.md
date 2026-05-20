@@ -22,6 +22,12 @@ SEARXNG_PORT=${SEARXNG_PORT}
 # EXTRACT_TIMEOUT=120
 # EXTRACT_MAX_LENGTH=524288
 # EXTRACT_MAX_JSON_BODY_BYTES=524288
+
+# Streamable HTTP MCP (web mode only)
+# MCP_STREAMABLE_PATH=/mcp
+# MCP_STREAMABLE_ENABLED=true
+# MCP_STATELESS_HTTP=true
+# MCP_JSON_RESPONSE=true
 ```
 
 When `EXTRACT_ENABLED` is true, the MCP advertises an `extract` tool and `POST /extract` on the HTTP server. The MCP **fetches** the URL (same path as `fetch`), then **POSTs** JSON to the sidecar at `{EXTRACTOR_SIDECAR_URL}/extract`. OpenRouter credentials and Zod live only on the sidecar.
@@ -54,7 +60,10 @@ These limits can be adjusted by modifying the constants in `server.py` if needed
 docker compose up -d
 ```
 
-The MCP server will be available at `http://localhost:${SEARXNG_MCP_PORT}` (default: 7778)
+The MCP server will be available at `http://localhost:${SEARXNG_MCP_PORT}` (default: 7778).
+
+- **Streamable MCP:** `http://localhost:${SEARXNG_MCP_PORT}/mcp` (official MCP protocol for agents)
+- **REST mirror:** paths below (`/search`, `/fetch`, …) for scripts and curl
 
 ## Web API Endpoints
 
@@ -180,9 +189,22 @@ To use this MCP server with Claude Desktop, add the following configuration to y
 
 ### MCP Server Configuration
 
-To use this MCP server with Cursor, add the following configuration to your Cursor MCP settings:
+To use this MCP server with Cursor, add configuration to `~/.cursor/mcp.json`.
 
-**Configuration file**: `~/.cursor/mcp.json`
+**Streamable HTTP** (container port published, e.g. Compose default):
+
+```json
+{
+  "mcpServers": {
+    "searxng": {
+      "url": "http://localhost:7778/mcp",
+      "description": "SearXNG metasearch: search, fetch, crawl, extract"
+    }
+  }
+}
+```
+
+**stdio via Docker exec** (no host port required):
 
 ```json
 {

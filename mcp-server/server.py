@@ -2,14 +2,13 @@
 """
 SearXNG MCP Server - Self-contained MCP server for SearXNG search engine.
 
-Entry point: stdio MCP or `--web` aiohttp REST API.
+Entry point: stdio MCP or `--web` Starlette (REST mirror + streamable HTTP MCP).
 """
 
 import asyncio
 import os
 import sys
 
-from aiohttp import web
 from mcp.server.stdio import stdio_server
 
 from searxng_mcp import __version__
@@ -20,32 +19,29 @@ from searxng_mcp.config import parse_env_bool  # noqa: F401
 from searxng_mcp.mcp.tools import build_tool_definitions, tools_to_json_list  # noqa: F401
 
 
-async def main() -> None:
+async def main_stdio() -> None:
     # stderr only: stdout is the MCP JSON-RPC transport in stdio mode.
-    print(f"searxng-mcp {__version__} starting", file=sys.stderr)
+    print(f"searxng-mcp {__version__} starting (stdio)", file=sys.stderr)
+    async with stdio_server() as (read_stream, write_stream):
+        await app.run(
+            read_stream,
+            write_stream,
+            app.create_initialization_options(),
+        )
 
-    if len(sys.argv) > 1 and sys.argv[1] == "--web":
-        from searxng_mcp.http.routes import create_web_app
 
-        app_web = await create_web_app()
-        port = int(os.environ.get("PORT", 7778))
-        runner = web.AppRunner(app_web)
-        await runner.setup()
-        site = web.TCPSite(runner, "0.0.0.0", port)
-        await site.start()
-        print(f"Web server running on port {port}")
-        try:
-            await asyncio.Future()
-        except KeyboardInterrupt:
-            pass
-    else:
-        async with stdio_server() as (read_stream, write_stream):
-            await app.run(
-                read_stream,
-                write_stream,
-                app.create_initialization_options(),
-            )
+def main_web() -> None:
+    import uvicorn
+
+    from searxng_mcp.http.routes import create_web_app
+
+    port = int(os.environ.get("PORT", 7778))
+    print(f"searxng-mcp {__version__} starting (web) on port {port}", file=sys.stderr)
+    uvicorn.run(create_web_app(), host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    if len(sys.argv) > 1 and sys.argv[1] == "--web":
+        main_web()
+    else:
+        asyncio.run(main_stdio())

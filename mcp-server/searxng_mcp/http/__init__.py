@@ -1,1 +1,1 @@
-"""Optional aiohttp REST API (same semantics as MCP tools)."""
+"""Starlette REST API and streamable HTTP MCP (same tool semantics as stdio)."""

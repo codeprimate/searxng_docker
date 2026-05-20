@@ -9,7 +9,7 @@ Companion to `SKILL.md`. Parameter tables, HTTP details, examples, and limits—
 | Service | Role | Typical port |
 |---------|------|----------------|
 | **SearXNG** | Metasearch UI + `GET /search` | Often **7777** |
-| **MCP server** | MCP tools + REST mirror | Often **7778** |
+| **MCP server** | Streamable MCP (`/mcp`) + REST mirror | Often **7778** |
 
 Configured via `SEARXNG_PORT`, `SEARXNG_MCP_PORT` (and protocol/host as deployed).
 
@@ -58,9 +58,17 @@ curl "http://localhost:7777/search?q=docker%20compose&format=json&categories=gen
 
 ---
 
-## MCP HTTP mirror
+## MCP transports
 
-Same behavior as MCP tools: **`POST`** JSON body to the MCP host/port.
+| Transport | Connect | Notes |
+|-----------|---------|-------|
+| **Streamable HTTP** | `http://{host}:{mcp_port}/mcp` | Cursor/Claude `url` in `mcp.json`; stateless by default |
+| **stdio** | `docker exec -i searxng-mcp python server.py` | No published port required |
+| **REST mirror** | `POST` JSON to paths below | Scripts, `curl`, `extract_url.py` |
+
+## MCP HTTP mirror (REST)
+
+Same behavior as MCP tools: **`POST`** JSON body to the MCP host/port (not `/mcp`).
 
 | Method | Path | Purpose |
 |--------|------|---------|
