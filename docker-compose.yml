@@ -81,7 +81,7 @@ services:
     environment:
       - PORT=3000
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-openai/gpt-4o-mini}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL:-google/gemini-3.1-flash-lite}
       - OPENROUTER_BASE_URL=${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
       - EXTRACT_MAX_LENGTH=${EXTRACT_MAX_LENGTH:-524288}
       - EXTRACT_MAX_JSON_BODY_BYTES=${EXTRACT_MAX_JSON_BODY_BYTES:-524288}

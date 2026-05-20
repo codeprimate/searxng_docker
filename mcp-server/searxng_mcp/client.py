@@ -16,6 +16,7 @@ from searxng_mcp.config import (
     LINKS_SECTION_MARKER,
 )
 from searxng_mcp.content_utils import truncate_content_with_links
+from searxng_mcp.http_body import decode_http_response_body
 
 
 class SearXNGClient:
@@ -61,7 +62,7 @@ class SearXNGClient:
             request.add_header("User-Agent", DEFAULT_USER_AGENT)
 
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                content = response.read().decode("utf-8")
+                content = decode_http_response_body(response.read(), response.headers)
                 return json.loads(content)
         except Exception as e:
             return {"error": str(e)}
@@ -77,7 +78,7 @@ class SearXNGClient:
                     request.add_header(key, value)
 
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                raw_content = response.read().decode("utf-8")
+                raw_content = decode_http_response_body(response.read(), response.headers)
 
                 soup = BeautifulSoup(raw_content, "html.parser")
 
@@ -137,7 +138,7 @@ class SearXNGClient:
                     request.add_header(key, value)
 
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                raw_content = response.read().decode("utf-8")
+                raw_content = decode_http_response_body(response.read(), response.headers)
                 soup = BeautifulSoup(raw_content, "html.parser")
 
             links = []
