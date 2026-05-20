@@ -3,6 +3,12 @@
  */
 import { z } from "zod";
 
+import { zodNumberLeaf } from "./numeric-coerce.js";
+import {
+  DEFAULT_VALIDATION_MODE,
+  type ValidationMode,
+} from "./validation-mode.js";
+
 export const ERR_NULLABLE_KEYWORD =
   "JSON Schema keyword nullable is not supported in v1; use type: [\"T\", \"null\"] instead";
 export const ERR_ADDITIONAL_PROPERTIES_TRUE =
@@ -137,6 +143,7 @@ function objectPropertySchema(
 function buildObjectSchema(
   schema: Record<string, unknown>,
   ctx: string,
+  mode: ValidationMode,
 ): z.ZodObject<Record<string, z.ZodTypeAny>> {
   assertAllowedKeys(schema, OBJECT_KEYS, ctx);
   const ap = schema.additionalProperties;
@@ -162,7 +169,11 @@ function buildObjectSchema(
   );
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const key of Object.keys(propRec)) {
-    const child = jsonSchemaToZodInner(propRec[key], `${ctx}.properties.${key}`);
+    const child = jsonSchemaToZodInner(
+      propRec[key],
+      `${ctx}.properties.${key}`,
+      mode,
+    );
     shape[key] = objectPropertySchema(child, required.has(key));
   }
   let obj = z.object(shape).strict();
@@ -176,12 +187,13 @@ function buildObjectSchema(
 function buildArraySchema(
   schema: Record<string, unknown>,
   ctx: string,
+  mode: ValidationMode,
 ): z.ZodArray<z.ZodTypeAny> {
   assertAllowedKeys(schema, ARRAY_KEYS, ctx);
   if (schema.items === undefined) {
     throw new SchemaConversionError(`array type requires items (at ${ctx})`);
   }
-  const itemSchema = jsonSchemaToZodInner(schema.items, `${ctx}.items`);
+  const itemSchema = jsonSchemaToZodInner(schema.items, `${ctx}.items`, mode);
   let arr = z.array(itemSchema);
   const desc = schema.description;
   if (typeof desc === "string" && desc.length > 0) {
@@ -190,7 +202,11 @@ function buildArraySchema(
   return arr;
 }
 
-function jsonSchemaToZodInner(node: unknown, ctx: string): z.ZodTypeAny {
+function jsonSchemaToZodInner(
+  node: unknown,
+  ctx: string,
+  mode: ValidationMode,
+): z.ZodTypeAny {
   if (node === null || typeof node !== "object" || Array.isArray(node)) {
     throw new SchemaConversionError(`Schema must be an object (at ${ctx})`);
   }
@@ -210,7 +226,7 @@ function jsonSchemaToZodInner(node: unknown, ctx: string): z.ZodTypeAny {
     }
     case "number": {
       assertAllowedKeys(schema, LEAF_KEYS, ctx);
-      inner = z.number();
+      inner = zodNumberLeaf(mode, false);
       const d = schema.description;
       if (typeof d === "string" && d.length > 0) {
         inner = inner.describe(d);
@@ -219,7 +235,7 @@ function jsonSchemaToZodInner(node: unknown, ctx: string): z.ZodTypeAny {
     }
     case "integer": {
       assertAllowedKeys(schema, LEAF_KEYS, ctx);
-      inner = z.number().int();
+      inner = zodNumberLeaf(mode, true);
       const d = schema.description;
       if (typeof d === "string" && d.length > 0) {
         inner = inner.describe(d);
@@ -236,11 +252,11 @@ function jsonSchemaToZodInner(node: unknown, ctx: string): z.ZodTypeAny {
       break;
     }
     case "object": {
-      inner = buildObjectSchema(schema, ctx);
+      inner = buildObjectSchema(schema, ctx, mode);
       break;
     }
     case "array": {
-      inner = buildArraySchema(schema, ctx);
+      inner = buildArraySchema(schema, ctx, mode);
       break;
     }
     default:
@@ -250,14 +266,22 @@ function jsonSchemaToZodInner(node: unknown, ctx: string): z.ZodTypeAny {
   return wrapNullable(inner, nullable);
 }
 
+export interface JsonSchemaToZodOptions {
+  validationMode?: ValidationMode;
+}
+
 /**
  * Convert a JSON Schema (v1 subset) object to a Zod schema.
  * @param root — parsed JSON (object) for `json_schema` from the request body
  */
-export function jsonSchemaToZod(root: unknown): z.ZodTypeAny {
+export function jsonSchemaToZod(
+  root: unknown,
+  options: JsonSchemaToZodOptions = {},
+): z.ZodTypeAny {
+  const mode = options.validationMode ?? DEFAULT_VALIDATION_MODE;
   assertNoNullableKeyword(root, "$");
   if (root === null || typeof root !== "object" || Array.isArray(root)) {
     throw new SchemaConversionError("json_schema must be a JSON object");
   }
-  return jsonSchemaToZodInner(root, "$");
+  return jsonSchemaToZodInner(root, "$", mode);
 }

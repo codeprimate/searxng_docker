@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
 
 import { canonicalJson } from "./canonical-json.js";
+import type { ValidationMode } from "./validation-mode.js";
 
-export const CACHE_KEY_VERSION = 1;
+export const CACHE_KEY_VERSION = 2;
 
 export interface CacheKeyParts {
   model: string;
+  validationMode: ValidationMode;
   jsonSchema: unknown;
   prompt: string;
   contentFormat: string;
@@ -30,6 +32,7 @@ export function buildCacheKey(parts: CacheKeyParts): string {
   const keyMaterial = [
     String(CACHE_KEY_VERSION),
     parts.model,
+    parts.validationMode,
     schemaCanon,
     parts.prompt,
     parts.contentFormat,

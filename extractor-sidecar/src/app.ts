@@ -20,6 +20,12 @@ export function parseExtractBody(raw: Record<string, unknown>): ExtractRequestBo
     extraction_context = ec as Record<string, unknown>;
   }
 
+  let validation_mode: string | undefined;
+  const vm = raw.validation_mode;
+  if (typeof vm === "string") {
+    validation_mode = vm;
+  }
+
   return {
     content: typeof raw.content === "string" ? raw.content : "",
     source_url: typeof raw.source_url === "string" ? raw.source_url : "",
@@ -29,6 +35,7 @@ export function parseExtractBody(raw: Record<string, unknown>): ExtractRequestBo
       typeof raw.content_format === "string" ? raw.content_format : undefined,
     extraction_context,
     maxInputTokens,
+    validation_mode,
   };
 }
 

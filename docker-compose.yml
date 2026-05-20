@@ -89,6 +89,7 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/1}
       - EXTRACT_CACHE_ENABLED=${EXTRACT_CACHE_ENABLED:-true}
       - EXTRACT_CACHE_TTL_SECONDS=${EXTRACT_CACHE_TTL_SECONDS:-86400}
+      - EXTRACT_VALIDATION_MODE=${EXTRACT_VALIDATION_MODE:-coerce}
     depends_on:
       - redis
     networks:

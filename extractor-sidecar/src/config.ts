@@ -3,6 +3,12 @@
  */
 import process from "node:process";
 
+import {
+  ENV_EXTRACT_VALIDATION_MODE,
+  type ValidationMode,
+  parseValidationMode,
+} from "./validation-mode.js";
+
 export const ENV_OPENROUTER_API_KEY = "OPENROUTER_API_KEY";
 export const ENV_OPENROUTER_MODEL = "OPENROUTER_MODEL";
 export const ENV_OPENROUTER_BASE_URL = "OPENROUTER_BASE_URL";
@@ -81,6 +87,7 @@ export interface AppConfig {
   redisUrl: string | undefined;
   cacheEnabled: boolean;
   cacheTtlSeconds: number;
+  validationMode: ValidationMode;
 }
 
 export function loadConfig(): AppConfig {
@@ -127,5 +134,8 @@ export function loadConfig(): AppConfig {
     redisUrl,
     cacheEnabled,
     cacheTtlSeconds,
+    validationMode: parseValidationMode(
+      process.env[ENV_EXTRACT_VALIDATION_MODE],
+    ),
   };
 }

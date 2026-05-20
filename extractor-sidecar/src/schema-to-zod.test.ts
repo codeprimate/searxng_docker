@@ -4,6 +4,7 @@ import {
   SchemaConversionError,
   jsonSchemaToZod,
 } from "./schema-to-zod.js";
+import { VALIDATION_MODE_COERCE, VALIDATION_MODE_STRICT } from "./validation-mode.js";
 
 describe("jsonSchemaToZod", () => {
   it("converts a minimal object schema", () => {
@@ -81,5 +82,44 @@ describe("jsonSchemaToZod", () => {
         required: ["a"],
       }),
     ).toThrow(SchemaConversionError);
+  });
+
+  it("coerce mode (default) parses numeric strings for integer fields", () => {
+    const zod = jsonSchemaToZod({
+      type: "object",
+      properties: {
+        points: { type: "integer" },
+      },
+      required: ["points"],
+    });
+    expect(zod.parse({ points: "518" })).toEqual({ points: 518 });
+    expect(zod.parse({ points: "518 points" })).toEqual({ points: 518 });
+  });
+
+  it("strict mode rejects numeric strings for integer fields", () => {
+    const zod = jsonSchemaToZod(
+      {
+        type: "object",
+        properties: {
+          points: { type: "integer" },
+        },
+        required: ["points"],
+      },
+      { validationMode: VALIDATION_MODE_STRICT },
+    );
+    expect(zod.parse({ points: 518 })).toEqual({ points: 518 });
+    expect(() => zod.parse({ points: "518" })).toThrow();
+  });
+
+  it("defaults to coerce mode when option omitted", () => {
+    const zod = jsonSchemaToZod(
+      {
+        type: "object",
+        properties: { n: { type: "integer" } },
+        required: ["n"],
+      },
+      { validationMode: VALIDATION_MODE_COERCE },
+    );
+    expect(zod.parse({ n: "42" })).toEqual({ n: 42 });
   });
 });

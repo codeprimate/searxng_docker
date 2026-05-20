@@ -5,6 +5,10 @@ import type { AppConfig } from "./config.js";
 import { SchemaConversionError, jsonSchemaToZod } from "./schema-to-zod.js";
 import { cacheGet, cacheSet, getRedisClient } from "./redis-cache.js";
 import { createOpenRouterLlm } from "./llm.js";
+import {
+  type ValidationMode,
+  parseValidationMode,
+} from "./validation-mode.js";
 
 export const ERR_EMPTY_CONTENT =
   "content must be non-empty and not whitespace-only";
@@ -23,12 +27,14 @@ export interface ExtractRequestBody {
   content_format?: string;
   extraction_context?: Record<string, unknown>;
   maxInputTokens?: number;
+  validation_mode?: string;
 }
 
 export interface ExtractSuccessJson {
   data: unknown;
   usage?: { inputTokens?: number; outputTokens?: number };
   cached: boolean;
+  validation_mode: ValidationMode;
 }
 
 export interface ExtractErrorResult {
@@ -54,6 +60,20 @@ function mapContentFormat(
 
 function isWhitespaceOnly(s: string): boolean {
   return s.trim().length === 0;
+}
+
+function resolveValidationMode(
+  body: ExtractRequestBody,
+  config: AppConfig,
+): ValidationMode {
+  const raw = body.validation_mode;
+  if (raw === undefined) {
+    return config.validationMode;
+  }
+  if (typeof raw !== "string") {
+    throw new Error('validation_mode must be a string ("strict" or "coerce")');
+  }
+  return parseValidationMode(raw, "validation_mode");
 }
 
 export async function runExtract(
@@ -104,8 +124,17 @@ export async function runExtract(
 
   const formatStr = (body.content_format ?? "txt").toLowerCase();
 
+  let validationMode: ValidationMode;
+  try {
+    validationMode = resolveValidationMode(body, config);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { status: 400, error: msg };
+  }
+
   const keyHash = buildCacheKey({
     model: config.openRouterModel,
+    validationMode,
     jsonSchema,
     prompt,
     contentFormat: formatStr,
@@ -119,12 +148,13 @@ export async function runExtract(
     return {
       data: cached.data,
       cached: true,
+      validation_mode: validationMode,
     };
   }
 
   let zodSchema;
   try {
-    zodSchema = jsonSchemaToZod(jsonSchema);
+    zodSchema = jsonSchemaToZod(jsonSchema, { validationMode });
   } catch (e) {
     const msg =
       e instanceof SchemaConversionError
@@ -158,6 +188,7 @@ export async function runExtract(
         outputTokens: result.usage.outputTokens,
       },
       cached: false,
+      validation_mode: validationMode,
     };
 
     await cacheSet(redis, keyHash, { data: result.data }, config.cacheTtlSeconds);

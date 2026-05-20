@@ -24,6 +24,7 @@ def test_tools_endpoint_shape():
     assert "inputSchema" in extract
     assert "url" in extract["inputSchema"]["properties"]
     assert "json_schema" in extract["inputSchema"]["properties"]
+    assert "validation_mode" in extract["inputSchema"]["properties"]
 
 
 def test_parse_env_bool():

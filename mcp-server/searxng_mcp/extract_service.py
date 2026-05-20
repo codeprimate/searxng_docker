@@ -95,5 +95,8 @@ async def run_extract_pipeline(arguments: Dict[str, Any]) -> Tuple[Dict[str, Any
     }
     if arguments.get("prompt") is not None:
         sidecar_body["prompt"] = arguments.get("prompt")
+    validation_mode = arguments.get("validation_mode")
+    if validation_mode is not None:
+        sidecar_body["validation_mode"] = validation_mode
 
     return await post_sidecar_extract(sidecar_body)

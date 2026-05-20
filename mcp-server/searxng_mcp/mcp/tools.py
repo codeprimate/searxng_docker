@@ -23,11 +23,18 @@ EXTRACT_TOOL_DESCRIPTION = (
 
 EXTRACT_JSON_SCHEMA_PROPERTY_DESCRIPTION = (
     "JSON Schema subset for the single returned object. Put mandatory keys in "
-    '"required"; keep the shape flat when possible. Keys outside "required" may be '
-    'omitted. If a key might be JSON null (not only absent), union its "type" with '
-    '"null" (e.g. ["string","null"], ["object","null"] with nested "properties"); '
-    'otherwise null fails. Unsupported: the "nullable" keyword; additionalProperties: '
-    'true. Use "prompt" for extraction rules the schema does not encode.'
+    '"required"; keep the shape flat when possible. Keys outside "required" are '
+    'returned as JSON null when unknown (not omitted). If a key might be null, '
+    'union its "type" with "null" (e.g. ["string","null"]). For numbers scraped '
+    'from page text (scores, counts, ranks), prefer type string over integer. '
+    'Unsupported: the "nullable" keyword; additionalProperties: true. Use "prompt" '
+    "for extraction rules the schema does not encode."
+)
+
+EXTRACT_VALIDATION_MODE_PROPERTY_DESCRIPTION = (
+    'Optional. "coerce" (default): coerce string numbers like "518" or "518 points" '
+    'into integer/number fields. "strict": require exact JSON types (stricter, more '
+    "validation failures on web pages)."
 )
 
 
@@ -168,6 +175,11 @@ def build_tool_definitions(extract_enabled: bool) -> List[Tool]:
                         "headers": {
                             "type": "object",
                             "description": "Optional HTTP request headers for fetching the URL",
+                        },
+                        "validation_mode": {
+                            "type": "string",
+                            "enum": ["coerce", "strict"],
+                            "description": EXTRACT_VALIDATION_MODE_PROPERTY_DESCRIPTION,
                         },
                     },
                     "required": ["url", "json_schema"],
