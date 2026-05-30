@@ -12,6 +12,8 @@ services:
   searxng:
     image: searxng/searxng:latest
     container_name: searxng
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     ports:
       - "${SEARXNG_PORT:-7777}:${SEARXNG_PORT:-7777}"
     volumes:
@@ -47,6 +49,8 @@ services:
   searxng-mcp:
     build: ./mcp-server
     container_name: searxng-mcp
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     ports:
       - "${SEARXNG_MCP_PORT:-7778}:${SEARXNG_MCP_PORT:-7778}"
     environment:
@@ -78,6 +82,8 @@ services:
   extractor-sidecar:
     build: ./extractor-sidecar
     container_name: extractor-sidecar
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     environment:
       - PORT=3000
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
