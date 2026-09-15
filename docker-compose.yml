@@ -15,7 +15,7 @@ services:
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
     ports:
-      - "${SEARXNG_PORT:-7777}:${SEARXNG_PORT:-7777}"
+      - "127.0.0.1:${SEARXNG_PORT:-7777}:${SEARXNG_PORT:-7777}"
     volumes:
       - ./searxng:/etc/searxng:rw
     environment:
@@ -38,9 +38,10 @@ services:
         max-file: "1"
     networks:
       - searxng
+      - services
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://${SEARXNG_HOST:-localhost}:${SEARXNG_PORT:-7777}/"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://${SEARXNG_HOST:-localhost}:${SEARXNG_PORT:-7777}/')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -52,7 +53,7 @@ services:
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
     ports:
-      - "${SEARXNG_MCP_PORT:-7778}:${SEARXNG_MCP_PORT:-7778}"
+      - "127.0.0.1:${SEARXNG_MCP_PORT:-7778}:${SEARXNG_MCP_PORT:-7778}"
     environment:
       - SEARXNG_PROTOCOL=${SEARXNG_PROTOCOL:-http}
       - SEARXNG_HOST=searxng
@@ -71,6 +72,7 @@ services:
       - searxng
     networks:
       - searxng
+      - services
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:${SEARXNG_MCP_PORT:-7778}/health')"]
@@ -121,3 +123,5 @@ volumes:
 networks:
   searxng:
     driver: bridge
+  services:
+    external: true
