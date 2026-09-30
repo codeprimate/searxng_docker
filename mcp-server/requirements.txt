@@ -1,3 +1,5 @@
-mcp>=1.27.0,<2
+mcp>=1.27.0,<2  # v2 renamed FastMCP and broke the v1 server API
 aiohttp>=3.8.0
 beautifulsoup4>=4.12.0
+# CVE-2026-63374 (TLSStream IDNA-2003 cert spoofing) — fix floor 4.14.2
+anyio>=4.14.2
