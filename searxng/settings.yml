@@ -1,4 +1,16 @@
-use_default_settings: true
+use_default_settings:
+  engines:
+    # --- Removed 2026-09-15: permanently unusable in this environment ---
+    #   torch  : xpath engine aimed at a .onion address. Requires Tor. SearXNG
+    #            auto-deactivates it, logging "can't register engine" every boot.
+    #   ahmia  : Tor hidden-service index. Requires Tor.
+    #   yacy   : P2P index. Requires a reachable public peer; it timed out on
+    #            every single query before removal.
+    remove:
+      - torch
+      - ahmia
+      - yacy
+      - yacy images
 
 general:
   debug: false
@@ -59,6 +71,9 @@ outgoing:
   max_retries: 0
 
 engines:
+  # Each entry here overrides the same-named engine from the image's defaults.
+  # Keep this list to engines we deliberately re-enable or re-tune; everything
+  # else inherits upstream's defaults.
   - name: bing
     engine: bing
     shortcut: bi
@@ -77,10 +92,17 @@ engines:
     categories: general
     disabled: false
 
-  - name: startpage
-    engine: startpage
-    shortcut: sp
-    categories: general
+  # --- Independent indexes, enabled 2026-09-15 after isolation testing. ---
+  # Your working set must be counted in distinct *indexes*, not engine names:
+  # duckduckgo is Bing-derived and google cse is Google, so those two pairs are
+  # really two indexes. These three run their own crawls and were each verified
+  # returning results. Together with Bing and Google that is five independent
+  # indexes, so losing one cannot drop the instance below its floor of three.
+  - name: yep
+    disabled: false
+  - name: wiby
+    disabled: false
+  - name: mwmbl
     disabled: false
 
   - name: wikipedia
@@ -101,12 +123,6 @@ engines:
     categories: it
     disabled: false
 
-  - name: reddit
-    engine: reddit
-    shortcut: re
-    categories: general
-    disabled: false
-
   - name: youtube
     engine: youtube_noapi
     shortcut: yt
@@ -125,32 +141,19 @@ engines:
     categories: it
     disabled: false
 
-  - name: ahmia
-    engine: ahmia
-    shortcut: ah
-    categories: general
-    disabled: false
-
-  - name: yacy
-    engine: yacy
-    categories: general
-    search_type: text
-    shortcut: ya
-    base_url:
-      - https://yacy.searchlab.eu
-      - https://search.lomig.me
-      - https://yacy.ecosys.eu
-      - https://search.webproject.link
-    disabled: false
-
-  - name: yacy images
-    engine: yacy
-    categories: images
-    search_type: image
-    shortcut: yai
-    base_url:
-      - https://yacy.searchlab.eu
-      - https://search.lomig.me
-      - https://yacy.ecosys.eu
-      - https://search.webproject.link
-    disabled: true
+# --- Removed 2026-09-15, recorded so it is not re-added blindly ---
+#   startpage : upstream sets `inactive: true` ("uses a Proof Of Work captcha",
+#               searxng/searxng#6669). The old block here set disabled:false but
+#               never overrode inactive, so it registered nothing at all — dead
+#               config that merely looked like an enabled engine. An entry under
+#               use_default_settings.engines.remove would not help: the engine is
+#               already skipped before removal is applied.
+#   ahmia, yacy, yacy images : see use_default_settings.engines.remove above.
+#   qwant   : TRIED 2026-09-15 — returns "CAPTCHA" to this host. Rejected.
+#   mojeek  : TRIED 2026-09-15 — serves a <title>Captcha</title> page and its
+#             engine does not detect it, so it returns zero results silently
+#             rather than reporting an error. Rejected; a silent engine is worse
+#             than a failing one.
+#   brave   : kept enabled. Genuinely independent index, healthy in normal use;
+#             its "too many requests" state is transient rate-limiting and
+#             clears on its own. SearXNG simply skips it while suspended.

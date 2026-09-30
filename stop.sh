@@ -1,4 +1,4 @@
 #!/bin/bash
 
-cd ~/services/searxng_docker
+cd /services/searxng_docker
 docker compose down
