@@ -3,6 +3,7 @@ import { extract, ContentFormat } from "@lightfeed/extractor";
 import { buildCacheKey } from "./cache-key.js";
 import type { AppConfig } from "./config.js";
 import { SchemaConversionError, jsonSchemaToZod } from "./schema-to-zod.js";
+import { isHollowResult } from "./hollow-result.js";
 import { cacheGet, cacheSet, getRedisClient } from "./redis-cache.js";
 import { createOpenRouterLlm } from "./llm.js";
 import {
@@ -181,17 +182,42 @@ export async function runExtract(
 
     const result = await extract(extractOpts);
 
+    // Hollow answers (well-shaped payloads whose every field is empty) are a
+    // nondeterministic failure mode of reasoning models under output pressure.
+    // Retry once; fail loudly if it happens again. A hollow payload is never
+    // cached — caching one poisons the cache for the whole TTL (2026-10-02).
+    let finalResult = result;
+    let inputTokens = result.usage.inputTokens ?? 0;
+    let outputTokens = result.usage.outputTokens ?? 0;
+    if (isHollowResult(finalResult.data)) {
+      finalResult = await extract(extractOpts);
+      inputTokens += finalResult.usage.inputTokens ?? 0;
+      outputTokens += finalResult.usage.outputTokens ?? 0;
+      if (isHollowResult(finalResult.data)) {
+        return {
+          status: 502,
+          error:
+            "extraction failed: model returned an empty result twice (not cached)",
+        };
+      }
+    }
+
     const responseJson: ExtractSuccessJson = {
-      data: result.data,
+      data: finalResult.data,
       usage: {
-        inputTokens: result.usage.inputTokens,
-        outputTokens: result.usage.outputTokens,
+        inputTokens,
+        outputTokens,
       },
       cached: false,
       validation_mode: validationMode,
     };
 
-    await cacheSet(redis, keyHash, { data: result.data }, config.cacheTtlSeconds);
+    await cacheSet(
+      redis,
+      keyHash,
+      { data: finalResult.data },
+      config.cacheTtlSeconds,
+    );
 
     return responseJson;
   } catch (e) {
