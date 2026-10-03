@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
 
-cd /services/searxng_docker
+cd "$(cd "$(dirname "$0")" && pwd)"
+
 docker compose up -d --build

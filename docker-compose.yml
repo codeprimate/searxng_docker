@@ -15,15 +15,7 @@ services:
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
     ports:
-      # Chassis-only publish. Two host-local addresses, no LAN binding:
-      #   127.0.0.1  — native processes on slab (agent, scripts)
-      #   172.17.0.1 — docker0 gateway; ANY container on ANY bridge reaches it as
-      #                host.docker.internal (Docker pins host-gateway to 172.17.0.1
-      #                regardless of the container's own network)
-      # Neither address is routable from another host, so scope does not depend
-      # on the nftables default-drop policy.
       - "127.0.0.1:${SEARXNG_PORT:-7777}:${SEARXNG_PORT:-7777}"
-      - "172.17.0.1:${SEARXNG_PORT:-7777}:${SEARXNG_PORT:-7777}"
     volumes:
       - ./searxng:/etc/searxng:rw
     environment:
@@ -61,9 +53,7 @@ services:
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=1
     ports:
-      # Chassis-only publish — see the searxng service above for the rationale.
       - "127.0.0.1:${SEARXNG_MCP_PORT:-7778}:${SEARXNG_MCP_PORT:-7778}"
-      - "172.17.0.1:${SEARXNG_MCP_PORT:-7778}:${SEARXNG_MCP_PORT:-7778}"
     environment:
       - SEARXNG_PROTOCOL=${SEARXNG_PROTOCOL:-http}
       - SEARXNG_HOST=searxng
