@@ -3,3 +3,6 @@ aiohttp>=3.8.0
 beautifulsoup4>=4.12.0
 # CVE-2026-63374 (TLSStream IDNA-2003 cert spoofing) — fix floor 4.14.2
 anyio>=4.14.2
+# GHSA-6q48-6c7w-9gw2 (CA root trust set) — certifi is transitive via httpx;
+# explicit floor so the fix lands and stays landed
+certifi>=2026.10.18
